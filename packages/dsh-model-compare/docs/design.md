@@ -54,7 +54,8 @@ A lane is an ordinary dsh session forked from the source: its own log, model, an
 | Lane columns | A plugin-declared session-scoped slot `model-compare.lane`, rendered inside `SessionProvider` bound to the `SessionReference` from `ctx.sessions.retain(laneId, { source: 'modelCompare' })`; the slot gets `useSession`, `useProjection`, and the lane's `eventSource` through its inject face. |
 | Rendering answers | `MarkdownText` from `@deepseek-ai/dsh-client-ui-primitives` (a shared shell module). |
 | Switching to the continuation | `uiWorkspace.openSession(id)`, read structurally at runtime. |
-| Model picker order | Read-only view of `dsh-model-switcher`'s `localStorage` favorites and recents (`dsh-model-switcher:v1`, keys `provider\0model`). |
+| Model picker | `dsh-model-switcher`'s `modelSwitcher` client service (`pick({ multiple, max, exclude, anchor, title })`), read with `ctx.get('modelSwitcher')` each time the setup form renders and checked for a `pick` method (`src/client/picker.ts`). No package dependency; a type test checks the local structural type against the switcher's `src/service.ts`. |
+| Model picker order (built-in list) | Read-only view of `dsh-model-switcher`'s `localStorage` favorites and recents (`dsh-model-switcher:v1`, keys `provider\0model`). |
 
 `agent-loop` is untouched and the plugin adds no session event types.
 

@@ -12,6 +12,7 @@ import type { CompareModel, CompareRecord, CompareStateResponse } from '../types
 import type { CompareApi } from './api.ts'
 import type { LaneOwnerProps } from './Lane.tsx'
 import type { SwitcherPrefs } from './prefs.ts'
+import type { ModelPicker } from './picker.ts'
 import { Setup } from './Setup.tsx'
 import type { Translate } from './Setup.tsx'
 import { CLASS } from './styles.ts'
@@ -30,6 +31,8 @@ export interface CompareDeps {
   readonly retain: (sessionId: string) => SessionReference
   /** Open a session in the main view; false when the page has no navigation service. */
   readonly open: (sessionId: string) => boolean
+  /** `dsh-model-switcher`'s picker, read when the setup form renders; undefined when it is not installed. */
+  readonly picker: () => ModelPicker | undefined
 }
 
 /** Props of {@link CompareView}. */
@@ -176,7 +179,7 @@ export function CompareView({ sessionId, deps, renderLane, t }: CompareViewProps
     return (
       <div className={CLASS.root} data-model-compare="">
         {notice !== undefined && <p className={CLASS.notice}>{notice}</p>}
-        <Setup key={sessionId} state={load.state} prefs={deps.prefs()} busy={busy} error={error} onStart={start} t={t} />
+        <Setup key={sessionId} state={load.state} prefs={deps.prefs()} busy={busy} error={error} onStart={start} t={t} picker={deps.picker()} />
       </div>
     )
   }

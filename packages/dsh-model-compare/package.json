@@ -1,6 +1,6 @@
 {
   "name": "dsh-model-compare",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Side-by-side model comparison for the DeepSeek Harness Web UI: send one prompt to 2–4 models in sibling sessions forked from the current one, watch the answers stream in columns (tabs on phones) with latency, time to first token, tokens, and cost, then continue with the answer you pick.",
   "license": "MIT",
   "type": "module",
@@ -73,7 +73,7 @@
     "typecheck": "tsc -p tsconfig.host.json && tsc -p tsconfig.client.json",
     "test": "vitest run",
     "pack:tarball": "pnpm pack --pack-destination ../../.artifacts",
-    "test:e2e": "pnpm run build && pnpm run pack:tarball && vitest run -c vitest.e2e.config.ts"
+    "test:e2e": "pnpm run build && pnpm run pack:tarball && pnpm --filter dsh-model-switcher run build && pnpm --filter dsh-model-switcher run pack:tarball && vitest run -c vitest.e2e.config.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"

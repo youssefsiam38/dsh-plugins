@@ -11,6 +11,7 @@ import { LaneView, laneStatus } from '../../src/client/Lane.tsx'
 import type { LaneOwnerProps } from '../../src/client/Lane.tsx'
 import { en, zh } from '../../src/client/locales.ts'
 import type { ModelCompareKey } from '../../src/client/locales.ts'
+import type { ModelPicker, PickedRef, PickRequest } from '../../src/client/picker.ts'
 import { parseSwitcherPrefs, readSwitcherPrefs, SWITCHER_PREFS_KEY } from '../../src/client/prefs.ts'
 import { catalogRows, listRows } from '../../src/client/Setup.tsx'
 import type { Translate } from '../../src/client/Setup.tsx'
@@ -88,8 +89,9 @@ function fakeApi(): { api: CompareApi; calls: Array<{ path: string; body: Record
   return { api: new CompareApi(fetcher), calls, state }
 }
 
-function deps(api: CompareApi, opened: string[]): CompareDeps {
+function deps(api: CompareApi, opened: string[], picker?: ModelPicker): CompareDeps {
   return {
+    picker: () => picker,
     api,
     prefs: () => ({ favorites: [{ provider: 'p', model: 'c' }], recents: [] }),
     retain: sessionId => ({ sessionId, release: vi.fn() }) as unknown as SessionReference,
@@ -160,6 +162,53 @@ describe('Compare view', () => {
     fireEvent.change(document.querySelector('[data-model-compare-prompt]')!, { target: { value: 'x' } })
     fireEvent.click(document.querySelector('[data-model-compare-start]')!)
     expect((await screen.findByRole('alert')).textContent).toContain('boom')
+  })
+
+  it('opens the model switcher picker when it is installed, keeping effort per model', async () => {
+    const { api, calls } = fakeApi()
+    const answers: Array<PickedRef[] | undefined> = [
+      undefined,
+      [{ provider: 'p', model: 'b' }, { provider: 'gone', model: 'x' }, { provider: 'p', model: 'c' }],
+      [{ provider: 'p', model: 'd' }],
+    ]
+    const requests: PickRequest[] = []
+    const picker: ModelPicker = {
+      pick: vi.fn((request?: PickRequest) => {
+        requests.push(request ?? {})
+        return Promise.resolve(answers.shift())
+      }),
+    }
+    render(createElement(CompareView, { sessionId: 'source', deps: deps(api, [], picker), renderLane, t }))
+    await screen.findByText('Compare models')
+    // No built-in list: models come from the picker.
+    expect(screen.queryByRole('combobox', { name: 'Search models' })).toBeNull()
+    const add = document.querySelector<HTMLButtonElement>('[data-model-compare-add]')!
+    expect(add.textContent).toBe('Add models')
+
+    // A cancelled pick changes nothing.
+    await act(async () => { fireEvent.click(add) })
+    expect(requests[0]).toEqual({ anchor: add, multiple: true, max: 2, exclude: [{ provider: 'p', model: 'a' }], title: 'Add models to compare' })
+    expect(document.querySelectorAll('[data-model-compare-chip]')).toHaveLength(1)
+
+    // Picked models become chips in pick order; models the catalog does not list are skipped.
+    await act(async () => { fireEvent.click(add) })
+    expect([...document.querySelectorAll('[data-model-compare-chip]')].map(chip => chip.getAttribute('data-model-compare-chip'))).toEqual(['p/a', 'p/b', 'p/c'])
+    expect(add.disabled).toBe(true)
+    expect(add.textContent).toBe('Up to 3 models')
+
+    // A chip reopens the picker for one model and swaps it in place.
+    fireEvent.change(screen.getByRole('combobox', { name: 'Reasoning effort for Beta' }), { target: { value: 'low' } })
+    const gamma = screen.getByRole('button', { name: 'Change Gamma' })
+    await act(async () => { fireEvent.click(gamma) })
+    expect(requests[2]).toEqual({ anchor: gamma, exclude: [{ provider: 'p', model: 'a' }, { provider: 'p', model: 'b' }], title: 'Replace Gamma' })
+    expect([...document.querySelectorAll('[data-model-compare-chip]')].map(chip => chip.getAttribute('data-model-compare-chip'))).toEqual(['p/a', 'p/b', 'p/d'])
+
+    fireEvent.change(document.querySelector('[data-model-compare-prompt]')!, { target: { value: 'go' } })
+    fireEvent.click(document.querySelector('[data-model-compare-start]')!)
+    await waitFor(() => { expect(calls.some(call => call.path === 'api/model-compare/start')).toBe(true) })
+    expect(calls.find(call => call.path === 'api/model-compare/start')?.body['models']).toEqual([
+      { provider: 'p', model: 'a' }, { provider: 'p', model: 'b', reasoningEffort: 'low' }, { provider: 'p', model: 'd' },
+    ])
   })
 
   it('discards an open comparison', async () => {

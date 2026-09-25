@@ -27,7 +27,7 @@ dsh plugin --profile web add dsh-model-compare
 From a packed tarball (for example one built from this repository with `pnpm pack`):
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-model-compare-0.1.0.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-model-compare-0.2.0.tgz
 ```
 
 The bundle patch (`cordis.patch.yml`) inserts one plugin row with id `model-compare`. The Web plugin page (**Plugins** in the sidebar) can do the same. Restart dsh if the profile does not reload live.
@@ -36,7 +36,12 @@ The bundle patch (`cordis.patch.yml`) inserts one plugin row with id `model-comp
 
 **A Compare tab** next to Chat (and Trajectory) in every session header, once the session has its first message.
 
-**Setup.** Pick the models: the default model is preselected, and the search box lists your favorites and recent models from [`dsh-model-switcher`](../dsh-model-switcher/README.md) first when that plugin is installed. Models with a reasoning-effort control get an effort menu. Type the prompt and press **Compare** (or Ctrl/Cmd+Enter). The form says how many models will be billed, the answer-length cap, and whether the models get tools.
+**Setup.** Pick the models: the default model is preselected. How you add the others depends on whether [`dsh-model-switcher`](../dsh-model-switcher/README.md) is installed:
+
+- **With `dsh-model-switcher` 0.2 or later**: **Add models** opens the switcher's popover (the provider select, fuzzy model search, favorites, recents, badges, and keyboard of the composer picker; a bottom sheet on phones) in a mode that checks several models and confirms with **Done**. It lists only models not yet chosen and stops at the model limit. Click a chosen model's name to swap it for another. Picking here does not change the session's model.
+- **Without it**: a search box lists the catalog, with the switcher's favorites and recent models first when an older switcher has stored them.
+
+Models with a reasoning-effort control get an effort menu on their chip, either way. Type the prompt and press **Compare** (or Ctrl/Cmd+Enter). The form says how many models will be billed, the answer-length cap, and whether the models get tools.
 
 **Columns.** One column per model, numbered, each with:
 
@@ -137,6 +142,7 @@ Every session stays readable. Lanes of open comparisons become ordinary sessions
 
 - dsh `>=0.1.7-rc.1 <0.2`, Web profile. The routes and the tab exist only with the Web connection; other profiles register nothing.
 - Needs the session controller (`resolveAgent`, `fork`, `modelCatalog`), the workspace registry, and the storage domain, all in the stock Web profile.
+- `dsh-model-switcher` is optional. The setup form uses its `modelSwitcher` picker service (0.2 or later) when the page provides it, and its own list otherwise. There is no package dependency: the service is found at run time.
 - Node.js `^22.19 || >=24`.
 
 ## Development
@@ -156,9 +162,10 @@ The unit tests run the plugin in the published dsh agent loop with a scripted mo
 - the tool policy in all three modes, including a denied write, and its re-application to a resumed lane and after a restart;
 - adopt, stop, discard, and request validation;
 - Loader composition with and without the Web connection;
-- the browser view: setup, columns, lane status and numbers, the transcript fold, and the switcher preferences.
+- the browser view: setup with the built-in list and with the switcher's picker (multiple pick, cancel, swap, excluded models, efforts kept per model), columns, lane status and numbers, the transcript fold, and the switcher preferences;
+- finding the switcher's `modelSwitcher` service on a real Cordis context, with and without it.
 
-The browser test (`e2e/`) installs the packed plugin and a test-only model route (`e2e/alpha`, `e2e/beta`) into a throwaway `DSH_HOME`, boots the `web` profile, and drives Chromium through a two-model comparison with statistics, continuing with one answer (which then runs on that model with its tools), a lane that tries to write a file (and cannot), and the phone layout with tabs:
+The browser test (`e2e/`) installs the packed plugin and a test-only model route (`e2e/alpha`, `e2e/beta`) into a throwaway `DSH_HOME`, boots the `web` profile, and drives Chromium through a two-model comparison with statistics, continuing with one answer (which then runs on that model with its tools), a lane that tries to write a file (and cannot), the built-in model list, and the phone layout with tabs. A second server also installs the packed `dsh-model-switcher` (the script builds and packs it too) and picks two models in its popover before comparing them:
 
 ```sh
 # @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies

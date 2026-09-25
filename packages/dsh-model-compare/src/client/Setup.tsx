@@ -1,11 +1,14 @@
 /**
- * Comparison setup: pick 2–4 models from the Host catalog (favorites and
- * recents of `dsh-model-switcher` first), optionally an effort per model, and
- * type the prompt.
+ * Comparison setup: pick 2–4 models from the Host catalog, optionally an
+ * effort per model, and type the prompt. Models come from
+ * `dsh-model-switcher`'s picker when it is installed (see `./picker.ts`),
+ * else from a built-in list with the switcher's favorites and recents first.
  */
 
 import { useId, useMemo, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import { pickedRefs } from './picker.ts'
+import type { ModelPicker, PickedRef } from './picker.ts'
 import type { CatalogGroup, CompareModel, CompareStateResponse } from '../types.ts'
 import type { ModelCompareKey } from './locales.ts'
 import type { SwitcherPrefs } from './prefs.ts'
@@ -74,6 +77,8 @@ export interface SetupProps {
   readonly error: string | undefined
   readonly onStart: (prompt: string, models: CompareModel[]) => void
   readonly t: Translate
+  /** `dsh-model-switcher`'s picker, when installed; absent uses the built-in list. */
+  readonly picker?: ModelPicker | undefined
 }
 
 let pickCounter = 0
@@ -83,7 +88,7 @@ let pickCounter = 0
  * @param props - catalog state, preferences, and the start callback.
  * @returns the setup form.
  */
-export function Setup({ state, prefs, busy, error, onStart, t }: SetupProps) {
+export function Setup({ state, prefs, busy, error, onStart, t, picker }: SetupProps) {
   const { settings, catalog } = state
   const rows = useMemo(() => catalogRows(catalog.groups), [catalog.groups])
   const [picked, setPicked] = useState<Picked[]>(() => {
@@ -103,6 +108,39 @@ export function Setup({ state, prefs, busy, error, onStart, t }: SetupProps) {
     setPicked(current => [...current, { ...row, key: `pick-${pickCounter++}` }])
     setQuery('')
     setOpen(false)
+  }
+  const rowOf = (ref: PickedRef) => rows.find(row => row.provider === ref.provider && row.model === ref.model)
+  const refOf = (pick: Picked): PickedRef => ({ provider: pick.provider, model: pick.model })
+  const pickMore = async (anchor: HTMLElement) => {
+    if (picker === undefined || full) return
+    const refs = pickedRefs(await picker.pick({
+      anchor,
+      multiple: true,
+      max: settings.maxModels - picked.length,
+      exclude: picked.map(refOf),
+      title: t('setup.pickTitle'),
+    }))
+    if (refs === undefined) return
+    const found = refs.map(rowOf).filter((row): row is ModelRow => row !== undefined)
+    setPicked(current => [
+      ...current,
+      ...found
+        .filter(row => !current.some(item => item.provider === row.provider && item.model === row.model))
+        .map(row => ({ ...row, key: `pick-${pickCounter++}` })),
+    ].slice(0, settings.maxModels))
+  }
+  const replace = async (anchor: HTMLElement, pick: Picked) => {
+    if (picker === undefined) return
+    const refs = pickedRefs(await picker.pick({
+      anchor,
+      exclude: picked.filter(item => item.key !== pick.key).map(refOf),
+      title: t('setup.replaceTitle', { model: pick.name }),
+    }))
+    const row = refs?.[0] === undefined ? undefined : rowOf(refs[0])
+    if (row === undefined) return
+    setPicked(current => current.some(item => item.key !== pick.key && item.provider === row.provider && item.model === row.model)
+      ? current
+      : current.map(item => item.key === pick.key ? { ...row, key: item.key } : item))
   }
   const submit = () => {
     if (!ready) return
@@ -132,7 +170,19 @@ export function Setup({ state, prefs, busy, error, onStart, t }: SetupProps) {
         <ul className={CLASS.chips} aria-label={t('setup.models')}>
           {picked.map(pick => (
             <li key={pick.key} className={CLASS.chip} data-model-compare-chip={`${pick.provider}/${pick.model}`}>
-              <span className={CLASS.chipName} title={`${pick.providerName} · ${pick.model}`}>{pick.name}</span>
+              {picker === undefined
+                ? <span className={CLASS.chipName} title={`${pick.providerName} · ${pick.model}`}>{pick.name}</span>
+                : (
+                  <button
+                    type="button"
+                    className={`${CLASS.chipName} ${CLASS.chipPick}`}
+                    title={`${pick.providerName} · ${pick.model}`}
+                    aria-label={t('setup.replace', { model: pick.name })}
+                    aria-haspopup="dialog"
+                    data-model-compare-replace={`${pick.provider}/${pick.model}`}
+                    onClick={(event) => { void replace(event.currentTarget, pick) }}
+                  >{pick.name}</button>
+                )}
               {pick.efforts.length > 0 && (
                 <select
                   className={CLASS.effort}
@@ -158,7 +208,21 @@ export function Setup({ state, prefs, busy, error, onStart, t }: SetupProps) {
             </li>
           ))}
         </ul>
-        <div className={CLASS.combo}>
+        {picker !== undefined && (
+          <div>
+            <button
+              type="button"
+              className={CLASS.secondary}
+              aria-haspopup="dialog"
+              disabled={full}
+              data-model-compare-add=""
+              onClick={(event) => { void pickMore(event.currentTarget) }}
+            >
+              {full ? t('setup.full', { max: settings.maxModels }) : t('setup.addModels')}
+            </button>
+          </div>
+        )}
+        {picker === undefined && <div className={CLASS.combo}>
           <input
             type="search"
             className={CLASS.input}
@@ -209,7 +273,7 @@ export function Setup({ state, prefs, busy, error, onStart, t }: SetupProps) {
               ))}
             </div>
           )}
-        </div>
+        </div>}
       </div>
       <label className={CLASS.field}>
         <span className={CLASS.label}>{t('setup.prompt')}</span>

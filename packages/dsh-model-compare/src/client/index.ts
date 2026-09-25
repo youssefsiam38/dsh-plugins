@@ -8,6 +8,8 @@
  *   shows the lane's statistics (`useProjection('model-compare')`) and a
  *   compact transcript folded from the lane's event window (see
  *   `./transcript.ts` for why the stock Chat view is not embedded).
+ * The setup form uses `dsh-model-switcher`'s `modelSwitcher` picker service
+ * when it is installed (`./picker.ts`), and its own list otherwise.
  * @module dsh-model-compare/client
  */
 
@@ -36,6 +38,7 @@ import { LaneView } from './Lane.tsx'
 import type { LaneOwnerProps } from './Lane.tsx'
 import { en, zh } from './locales.ts'
 import type { ModelCompareKey } from './locales.ts'
+import { isModelPicker, PICKER_SERVICE } from './picker.ts'
 import { readSwitcherPrefs } from './prefs.ts'
 import { foldTranscript } from './transcript.ts'
 import { MODEL_COMPARE_CSS } from './styles.ts'
@@ -48,6 +51,8 @@ export { LaneStats, LaneView, laneStatus } from './Lane.tsx'
 export type { LaneOwnerProps, LaneViewProps } from './Lane.tsx'
 export { Setup, catalogRows, listRows } from './Setup.tsx'
 export type { ModelRow, Picked, SetupProps, Translate } from './Setup.tsx'
+export { isModelPicker, pickedRefs, PICKER_SERVICE } from './picker.ts'
+export type { ModelPicker, PickedRef, PickRequest } from './picker.ts'
 export { parseSwitcherPrefs, readSwitcherPrefs, SWITCHER_PREFS_KEY } from './prefs.ts'
 export type { SwitcherPrefs } from './prefs.ts'
 export { seconds, tokens, usd } from './format.ts'
@@ -163,6 +168,10 @@ export function apply(ctx: ClientContext): void {
       if (!isNavigation(navigation)) return false
       navigation.openSession(sessionId as SessionId)
       return true
+    },
+    picker: () => {
+      const service: unknown = ctx.get(PICKER_SERVICE as never)
+      return isModelPicker(service) ? service : undefined
     },
   }
 

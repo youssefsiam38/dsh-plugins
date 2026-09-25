@@ -4,7 +4,8 @@
  * `DSH_HOME` with `dsh plugin add`, boots the `web` profile, and drives
  * Chromium through a comparison: setup, two streaming columns with
  * statistics, the lane tool policy, continuing with one answer, and the
- * phone layout with tabs.
+ * phone layout with tabs. A second server also installs the packed
+ * `dsh-model-switcher` and picks the models through its popover.
  *
  * Choose the dsh to test with:
  * - nothing: `npx -y @deepseek-ai/dsh@<version>` from npm, where the version is
@@ -70,10 +71,16 @@ async function acknowledgeWelcome(home: string): Promise<void> {
   ].join('\n'))
 }
 
-async function packedTarball(): Promise<string> {
-  const name = (await readdir(ARTIFACTS)).filter(file => /^dsh-model-compare-.*\.tgz$/.test(file)).sort().at(-1)
-  if (name === undefined) throw new Error('run `pnpm run pack:tarball` first')
-  return join(ARTIFACTS, name)
+/**
+ * The packed tarball of a package in this repository, at its current version.
+ * @param name - package directory name under `packages/`.
+ * @returns the tarball path in `.artifacts/`.
+ */
+async function packedTarball(name = 'dsh-model-compare'): Promise<string> {
+  const manifest = JSON.parse(await readFile(join(PACKAGE_DIR, '..', name, 'package.json'), 'utf8')) as { version: string }
+  const file = `${name}-${manifest.version}.tgz`
+  if (!(await readdir(ARTIFACTS)).includes(file)) throw new Error(`run \`pnpm --filter ${name} run pack:tarball\` first`)
+  return join(ARTIFACTS, file)
 }
 
 function runDsh(home: string, args: string[]): void {
@@ -262,6 +269,16 @@ describe('model comparison in the dsh Web UI', () => {
     await expect.poll(async () => /"status":\s*"adopted"/.test(await storedCompares(home)), { timeout: 10_000 }).toBe(true)
   }, 300_000)
 
+  it('uses its own model list when dsh-model-switcher is not installed', async () => {
+    await newSession(page, server!.url, 'fallback check')
+    await openCompare(page)
+    await page.getByRole('combobox', { name: 'Search models' }).waitFor()
+    expect(await page.locator('[data-model-compare-add]').count()).toBe(0)
+    await pickBeta(page)
+    expect(await page.locator('[data-model-switcher-panel]').count()).toBe(0)
+    await page.locator('[data-model-compare-chip="e2e/beta"]').waitFor()
+  }, 300_000)
+
   it('keeps lanes from writing to the workspace', async () => {
     onTestFailed(async () => { await page.screenshot({ path: join(tmpdir(), 'dsh-model-compare-e2e-tools.png'), fullPage: true }) })
     await newSession(page, server!.url, 'second session')
@@ -316,3 +333,89 @@ async function openCompareLanes(page: Page): Promise<void> {
   await page.getByRole('tab', { name: 'Compare', exact: true }).or(page.getByRole('button', { name: 'Compare', exact: true })).first().click()
   await page.locator('[data-model-compare-lane]').first().waitFor({ timeout: 30_000 })
 }
+
+describe('model comparison with dsh-model-switcher installed', () => {
+  let home: string
+  let workspace: string
+  let server: Served | undefined
+  let browser: Browser
+  let page: Page
+
+  beforeAll(async () => {
+    home = await mkdtemp(join(tmpdir(), 'dsh-model-compare-e2e-switcher-'))
+    workspace = await mkdtemp(join(tmpdir(), 'dsh-model-compare-e2e-switcher-ws-'))
+    const overlay = join(home, 'e2e-overlay.yml')
+    await writeFile(overlay, ['- id: agent-default-model', '  config:', '    provider: e2e', '    model: alpha', ''].join('\n'))
+    runDsh(home, ['plugin', '--profile', 'web', 'add', await packedTarball()])
+    runDsh(home, ['plugin', '--profile', 'web', 'add', await packedTarball('dsh-model-switcher')])
+    runDsh(home, ['plugin', '--profile', 'web', 'add', FIXTURE])
+    await acknowledgeWelcome(home)
+    server = await serve(home, overlay, workspace)
+    browser = await chromium.launch()
+    page = await browser.newPage({ locale: 'en-US', timezoneId: 'UTC', viewport: { width: 1440, height: 960 } })
+    page.on('console', (message) => { consoleLog.push(`[${message.type()}] ${message.text()}`) })
+    page.on('pageerror', (error) => { consoleLog.push(`[pageerror] ${error.message}`) })
+    page.on('dialog', (dialog) => { void dialog.accept() })
+  }, 600_000)
+
+  afterAll(async () => {
+    await browser?.close()
+    if (server !== undefined) await stop(server.child)
+    if (process.env['DSH_E2E_KEEP_HOME'] === undefined) {
+      await rm(home, { recursive: true, force: true })
+      await rm(workspace, { recursive: true, force: true })
+    } else console.log(`DSH_HOME kept at ${home}`)
+  })
+
+  it('picks the models in the switcher popover and compares them', async () => {
+    onTestFailed(async () => {
+      await page.screenshot({ path: join(tmpdir(), 'dsh-model-compare-e2e-switcher.png'), fullPage: true })
+      await writeFile(join(tmpdir(), 'dsh-model-compare-e2e-switcher-server.log'), server?.output() ?? '')
+      await writeFile(join(tmpdir(), 'dsh-model-compare-e2e-console.log'), consoleLog.join('\n'))
+    })
+    await newSession(page, server!.url, 'hello there', false)
+    // The switcher also owns the composer model control.
+    const composerModel = page.locator('[data-model-switcher-trigger]')
+    await expect.poll(() => composerModel.innerText(), { timeout: 30_000 }).toContain('Alpha')
+    await openCompare(page)
+    expect(await page.getByRole('combobox', { name: 'Search models' }).count()).toBe(0)
+
+    // Start from an empty selection and pick both models in one multiple pick.
+    await page.getByRole('button', { name: 'Remove Alpha' }).click()
+    await page.locator('[data-model-compare-add]').click()
+    const panel = page.locator('[data-model-switcher-panel][data-model-switcher-pick="multiple"]')
+    await panel.waitFor({ timeout: 30_000 })
+    expect(await panel.getAttribute('aria-label')).toBe('Add models to compare')
+    const search = panel.getByRole('combobox', { name: 'Models' })
+    await expect.poll(() => page.evaluate(() => document.activeElement?.hasAttribute('data-model-switcher-search') ?? false)).toBe(true)
+    await search.fill('beta')
+    await search.press('Enter')
+    await search.fill('alph')
+    await search.press('Enter')
+    await expect.poll(() => panel.locator('[data-model-switcher-count]').innerText()).toBe('2 of 4 selected')
+    if (SCREENSHOTS !== undefined) await page.screenshot({ path: join(SCREENSHOTS, 'compare-switcher-pick.png') })
+    await panel.locator('[data-model-switcher-done]').click()
+    await panel.waitFor({ state: 'detached', timeout: 10_000 })
+    await expect.poll(() => page.locator('[data-model-compare-chip]').evaluateAll(chips => chips.map(chip => chip.getAttribute('data-model-compare-chip'))))
+      .toEqual(['e2e/beta', 'e2e/alpha'])
+
+    // A chip opens a single pick that leaves the other chosen model out.
+    await page.getByRole('button', { name: 'Change Alpha' }).click()
+    const single = page.locator('[data-model-switcher-panel][data-model-switcher-pick="single"]')
+    await single.waitFor({ timeout: 10_000 })
+    expect(await single.locator('[role="option"][data-model="beta"]').count()).toBe(0)
+    await single.locator('[role="option"][data-model="alpha"]').waitFor()
+    await page.keyboard.press('Escape')
+    await single.waitFor({ state: 'detached', timeout: 10_000 })
+
+    await page.locator('[data-model-compare-prompt]').fill('which is faster?')
+    await page.locator('[data-model-compare-start]').click()
+    const lanes = page.locator('[data-model-compare-lane]')
+    await expect.poll(() => lanes.count(), { timeout: 30_000 }).toBe(2)
+    await lanes.nth(0).getByText(/^beta: which is faster\? \| tools=/).waitFor({ timeout: 60_000 })
+    await lanes.nth(1).getByText(/^alpha: which is faster\? \| tools=/).waitFor({ timeout: 60_000 })
+    if (SCREENSHOTS !== undefined) await page.screenshot({ path: join(SCREENSHOTS, 'compare-switcher-lanes.png') })
+    // Picking for the comparison did not change the session's model.
+    expect(await composerModel.innerText()).toContain('Alpha')
+  }, 300_000)
+})

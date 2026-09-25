@@ -13,6 +13,7 @@ export const CLASS = {
   chips: 'dmc-chips',
   chip: 'dmc-chip',
   chipName: 'dmc-chip-name',
+  chipPick: 'dmc-chip-pick',
   chipRemove: 'dmc-chip-remove',
   effort: 'dmc-effort',
   combo: 'dmc-combo',
@@ -99,6 +100,11 @@ export const MODEL_COMPARE_CSS = `
   background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-layer-1));
 }
 .${CLASS.chipName} { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.${CLASS.chipPick} {
+  min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer;
+  text-decoration: underline dotted transparent; text-underline-offset: 3px;
+}
+.${CLASS.chipPick}:hover, .${CLASS.chipPick}:focus-visible { text-decoration-color: currentColor; }
 .${CLASS.chipRemove} {
   width: 22px; height: 22px; padding: 0;
   border: 0; border-radius: 11px;
