@@ -1,0 +1,7 @@
+# dsh-hunk-review bundle patch: `dsh plugin --profile web add dsh-hunk-review`
+# reads `dsh.bundle.patch` from package.json and merges this layer into the
+# profile, which inserts the plugin row. Configure it with a profile patch that
+# targets the `hunk-review` id (see README "Configuration").
+- insert:
+    - id: hunk-review
+      name: dsh-hunk-review
