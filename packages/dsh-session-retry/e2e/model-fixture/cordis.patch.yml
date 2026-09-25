@@ -1,0 +1,3 @@
+- insert:
+    - id: e2e-model
+      name: dsh-session-retry-e2e-model

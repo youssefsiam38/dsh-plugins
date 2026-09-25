@@ -1,6 +1,16 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "noEmit": true },
-  "include": ["src", "tests", "*.ts"],
-  "exclude": ["src/client", "tests/client"]
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": [
+    "src",
+    "tests",
+    "e2e",
+    "*.ts"
+  ],
+  "exclude": [
+    "src/client",
+    "tests/client"
+  ]
 }

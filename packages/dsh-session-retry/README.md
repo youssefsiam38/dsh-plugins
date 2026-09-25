@@ -62,7 +62,7 @@ Built-in conditions, each switchable in the configuration:
 | `builtin:server-error` | a provider server error | `SERVER` | 500, 502, 503, 520–524, 529 |
 | `builtin:rate-limit` | a provider rate limit | `RATE_LIMIT` | 429 |
 
-These only see failures that end the turn, which happens after dsh's `llm-retry` has used up its own quick per-request retries. The two layers do not overlap: `llm-retry` retries one request for seconds; this plugin retries the whole session for up to weeks.
+These only see failures that end the turn, which happens after dsh's `llm-retry` has used up its own quick per-request retries. The two layers do not overlap: `llm-retry` retries one request for seconds; this plugin retries the whole session for up to weeks. A provider whose retry policy uses `mode: always` never ends the turn on these errors, so this plugin never sees them; use `mode: normal` with a small `maxRetries` for such providers.
 
 ## Backoff policy
 
@@ -174,6 +174,8 @@ with the source `{ kind: 'session-retry', attempt, maxAttempts, conditionId, rea
 
 Context cost: one short message (about 20 tokens) per retry that calls the model, plus whatever the continued turn produces. A skipped slot costs nothing.
 
+In the Web transcript the continuation appears as a small collapsed row, like other messages a plugin adds on your behalf.
+
 ## Uninstalling
 
 Remove the plugin with `dsh plugin --profile web remove dsh-session-retry` (or on the Plugins page). Sessions stay readable: the only trace in the log is ordinary `user/message` events whose source kind (`session-retry`) stock dsh keeps as an unknown producer. Pending retries simply stop; nothing needs cleaning up.
@@ -195,6 +197,17 @@ pnpm --filter dsh-session-retry run pack:tarball   # writes .artifacts/dsh-sessi
 ```
 
 The tests run the plugin inside the published dsh agent loop with a scripted model: backoff math, classification, restart from a stored log, uninstall safety, a person's message cancelling, exhaustion, third-party conditions with readiness, the Loader composition, and the browser block.
+
+The browser test (`e2e/`) installs the packed plugin and a test-only model route into a throwaway `DSH_HOME` with `dsh plugin add`, boots the `web` profile, and drives Chromium through the block, its tooltip, **Retry now**, **Stop**, and cancellation by a new message. Point it at a dsh build:
+
+```sh
+# a built dsh checkout
+DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-session-retry run test:e2e
+# or any launcher
+DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-session-retry run test:e2e
+```
+
+Without either variable the browser test is skipped. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
 
 ## License
 

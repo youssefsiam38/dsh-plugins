@@ -24,6 +24,7 @@
     "lib/client.js",
     "lib/client.js.map",
     "lib/types/**/*.d.ts",
+    "res/*.png",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
@@ -65,7 +66,8 @@
     "build": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\" && tsc -p tsconfig.build.host.json && tsc -p tsconfig.build.client.json && tsdown",
     "typecheck": "tsc -p tsconfig.host.json && tsc -p tsconfig.client.json",
     "test": "vitest run",
-    "pack:tarball": "pnpm pack --pack-destination ../../.artifacts"
+    "pack:tarball": "pnpm pack --pack-destination ../../.artifacts",
+    "test:e2e": "pnpm run build && pnpm run pack:tarball && vitest run -c vitest.e2e.config.ts"
   },
   "dependencies": {
     "zod": "^4.4.3"
@@ -117,6 +119,7 @@
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.1",
     "jsdom": "^26.1.0",
+    "playwright": "1.61.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.2",

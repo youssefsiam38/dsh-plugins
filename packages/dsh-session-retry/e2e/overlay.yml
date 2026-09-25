@@ -1,0 +1,11 @@
+# Browser-test overlay: start sessions on the test model route and stretch the
+# backoff so the block stays visible between slots (after attempt 2 fails the
+# next slot is 2^10 s ≈ 17 min away).
+- id: agent-default-model
+  config:
+    provider: e2e
+    model: flaky
+- id: session-retry
+  config:
+    backoff:
+      exponent: 10
