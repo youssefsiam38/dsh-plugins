@@ -299,7 +299,7 @@ export class UserShellService extends Service {
       }),
     }
     this.active.set(sessionId, active)
-    this.hub.start({ commandId, sessionId, command, mode, startedAt: Date.now() })
+    this.hub.start({ commandId, sessionId, command, mode, startedAt: Date.now(), claimed: active.owner !== undefined })
     ticket?.started(commandId)
     const onAbort = (): void => { active.run.cancel() }
     signal.addEventListener('abort', onAbort, { once: true })

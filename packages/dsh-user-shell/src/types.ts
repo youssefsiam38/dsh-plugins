@@ -45,6 +45,12 @@ export interface UserShellRunView {
   readonly mode: UserShellMode
   /** Epoch milliseconds. */
   readonly startedAt: number
+  /**
+   * Whether a browser tab started the run through the run route; only that tab
+   * may answer its password prompts. Runs started with `/sh` or `/shq` are
+   * unclaimed, and any authenticated tab may answer them.
+   */
+  readonly claimed: boolean
   /** Most recent output (a bounded tail). */
   readonly output: string
   /** Whether older output was dropped from `output`. */

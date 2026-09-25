@@ -36,7 +36,7 @@ function mockFetch() {
   return { calls, fetcher }
 }
 
-const view = { commandId: 'c1', sessionId: 's1', command: 'sudo apt update', mode: 'context' as const, startedAt: 0, output: 'Reading…\n', outputTruncated: false }
+const view = { commandId: 'c1', sessionId: 's1', command: 'sudo apt update', mode: 'context' as const, startedAt: 0, claimed: true, output: 'Reading…\n', outputTruncated: false }
 
 describe('ShellBlock', () => {
   it('shows live output, cancels, and answers the password prompt from the owning tab', async () => {
@@ -73,6 +73,17 @@ describe('ShellBlock', () => {
     render(createElement(ShellBlock, { node: { commandId: 'c1', args: null, outcome: null }, mode: 'context', store, t }))
     expect(screen.queryByLabelText('Password')).toBeNull()
     expect(screen.getByText(en['askpass.otherTab'])).toBeTruthy()
+  })
+
+  it('any tab answers the prompt of an unclaimed `/sh` run', () => {
+    const store = new UserShellStore(mockFetch().fetcher)
+    act(() => {
+      store.apply({ type: 'start', run: { ...view, claimed: false } })
+      store.apply({ type: 'askpass', commandId: 'c1', askpass: { requestId: '1', prompt: '' } })
+    })
+    render(createElement(ShellBlock, { node: { commandId: 'c1', args: null, outcome: null }, mode: 'context', store, t }))
+    expect(screen.getByLabelText('Password')).toBeTruthy()
+    expect(screen.queryByText(en['askpass.otherTab'])).toBeNull()
   })
 
   it('renders the record: exit code and duration even with empty output', () => {

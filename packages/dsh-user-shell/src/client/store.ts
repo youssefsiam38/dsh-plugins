@@ -26,7 +26,7 @@ export interface ClientRun extends UserShellRunView {
   /** Present once the run ended. */
   readonly status?: UserShellStatus
   readonly durationMs?: number
-  /** Whether this tab started the run (and may answer its password prompts). */
+  /** Whether this tab may answer the run's password prompts: it started the run, or the run is unclaimed. */
   readonly owned: boolean
 }
 
@@ -106,12 +106,12 @@ export class UserShellStore {
         this.quietEnabled = event.quiet
         const next = new Map<string, ClientRun>()
         for (const [id, run] of this.runs) if (run.status !== undefined) next.set(id, run)
-        for (const run of event.runs) next.set(run.commandId, { ...run, owned: this.owned.has(run.commandId) })
+        for (const run of event.runs) next.set(run.commandId, { ...run, owned: this.mayAnswer(run) })
         this.runs = next
         break
       }
       case 'start':
-        this.runs.set(event.run.commandId, { ...event.run, owned: this.owned.has(event.run.commandId) })
+        this.runs.set(event.run.commandId, { ...event.run, owned: this.mayAnswer(event.run) })
         break
       case 'output':
         this.update(event.commandId, (run) => {
@@ -140,6 +140,10 @@ export class UserShellStore {
         break
     }
     this.notify()
+  }
+
+  private mayAnswer(run: UserShellRunView): boolean {
+    return !run.claimed || this.owned.has(run.commandId)
   }
 
   /**

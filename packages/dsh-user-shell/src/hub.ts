@@ -13,6 +13,7 @@ interface LiveRun {
   readonly command: string
   readonly mode: UserShellMode
   readonly startedAt: number
+  readonly claimed: boolean
   output: string
   outputTruncated: boolean
   askpass: UserShellAskpass | undefined
@@ -55,8 +56,9 @@ export class UserShellHub {
    * @param run.command - command text.
    * @param run.mode - context or quiet.
    * @param run.startedAt - epoch milliseconds.
+   * @param run.claimed - whether a browser tab owns the run's password prompts.
    */
-  start(run: { commandId: string; sessionId: string; command: string; mode: UserShellMode; startedAt: number }): void {
+  start(run: { commandId: string; sessionId: string; command: string; mode: UserShellMode; startedAt: number; claimed: boolean }): void {
     const live: LiveRun = { ...run, output: '', outputTruncated: false, askpass: undefined, unsent: '' }
     this.runs.set(run.commandId, live)
     this.emit({ type: 'start', run: this.view(live) })
@@ -143,6 +145,7 @@ export class UserShellHub {
       command: run.command,
       mode: run.mode,
       startedAt: run.startedAt,
+      claimed: run.claimed,
       output: run.output,
       outputTruncated: run.outputTruncated,
       ...run.askpass === undefined ? {} : { askpass: run.askpass },

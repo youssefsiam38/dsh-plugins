@@ -243,5 +243,27 @@ describe('event stream', () => {
     expect(frames[0]).toEqual({ type: 'snapshot', runs: [], quiet: true })
     expect(frames.map(frame => frame.type)).toEqual(expect.arrayContaining(['start', 'output', 'end']))
     expect(frames.find(frame => frame.type === 'output')).toMatchObject({ commandId, text: 'streamed-line\n' })
+    expect(frames.find(frame => frame.type === 'start')).toMatchObject({ run: { commandId, claimed: true } })
+  })
+
+  it('marks a `/sh` run unclaimed, so any tab may answer its password prompt', async () => {
+    const harness = await mount()
+    const events: UserShellEvent[] = []
+    const route = harness.connection!.routes.get(ROUTES.events)!
+    const abort = new AbortController()
+    const response = await route.fetch(new Request(`http://127.0.0.1${ROUTES.events}`, { signal: abort.signal }))
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    const execution = harness.ctx.commands.execute(harness.agent, '/sh echo unclaimed', [], new AbortController().signal)
+    let received = ''
+    while (!received.includes('"type":"start"')) {
+      const { value, done } = await reader.read()
+      if (done) break
+      received += decoder.decode(value)
+    }
+    abort.abort()
+    await execution
+    for (const frame of received.split('\n\n')) if (frame.startsWith('data: ')) events.push(JSON.parse(frame.slice(6)) as UserShellEvent)
+    expect(events.find(frame => frame.type === 'start')).toMatchObject({ run: { claimed: false } })
   })
 })
