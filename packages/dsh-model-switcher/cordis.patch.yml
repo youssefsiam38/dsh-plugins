@@ -1,0 +1,7 @@
+# dsh-model-switcher bundle patch: `dsh plugin --profile web add dsh-model-switcher`
+# reads `dsh.bundle.patch` from package.json and merges this layer into the
+# profile, which inserts the plugin row. Configure it with a profile patch that
+# targets the `model-switcher` id (see README "Configuration").
+- insert:
+    - id: model-switcher
+      name: dsh-model-switcher

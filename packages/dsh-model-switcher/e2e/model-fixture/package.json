@@ -1,0 +1,20 @@
+{
+  "name": "dsh-model-switcher-e2e-models",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Test-only model routes for the dsh-model-switcher browser test: three demo providers whose models echo the last message and the provider, model, and effort the request used.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-llm": "^0.1.7-rc.1"
+  }
+}

@@ -1,0 +1,3 @@
+- insert:
+    - id: e2e-models
+      name: dsh-model-switcher-e2e-models
