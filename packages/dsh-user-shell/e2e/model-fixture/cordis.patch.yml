@@ -1,0 +1,3 @@
+- insert:
+    - id: e2e-model
+      name: dsh-user-shell-e2e-model

@@ -1,0 +1,20 @@
+{
+  "name": "dsh-user-shell-e2e-model",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Test-only model route for the dsh-user-shell browser test: answers with the last message and the shell commands it can see.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-llm": "^0.1.7-rc.1"
+  }
+}

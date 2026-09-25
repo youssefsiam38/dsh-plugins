@@ -5,6 +5,7 @@ Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 | Package | What it does |
 |---|---|
 | [`dsh-session-retry`](packages/dsh-session-retry/README.md) | Retries a session automatically after a transient failure, with growing backoff, a live retry block in the chat, and an extension point for your own retry conditions. |
+| [`dsh-user-shell`](packages/dsh-user-shell/README.md) | `!cmd` and `!!cmd` in the Web composer: shell commands you run yourself in the session workspace, with live output, cancel, and a browser password prompt for sudo; `!` results reach the agent with your next message. |
 
 ## Working in this repository
 

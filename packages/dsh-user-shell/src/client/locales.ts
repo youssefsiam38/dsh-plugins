@@ -1,0 +1,68 @@
+/** `user-shell` namespace dictionaries. */
+
+/** English dictionary (the key-set source of truth). */
+export const en = {
+  'mode.context': 'Shell command · output goes to the agent',
+  'mode.quiet': 'Shell command · output stays out of the agent context',
+  'mode.unsupported': 'This dsh version sends ! lines to the agent; use /sh <command> or /shq <command>',
+  'badge.context': 'Shell command, output added to the agent context',
+  'badge.quiet': 'Shell command, output not added to the agent context',
+  'status.running': 'Running…',
+  'status.starting': 'Starting…',
+  'status.exit': 'Exit {code}',
+  'status.signal': 'Killed by {signal}',
+  'status.cancelled': 'Cancelled',
+  'status.timeout': 'Timed out',
+  'status.failed': 'Failed to start: {reason}',
+  'status.duration': '{seconds} s',
+  'output.empty': 'No output',
+  'output.truncated': 'Earlier output is not shown here',
+  'output.full': 'Full output: {path}',
+  'context.added': 'Goes to the agent with your next message',
+  'context.skipped': 'Not added to the agent context',
+  'action.cancel': 'Cancel',
+  'askpass.label': 'sudo is asking for a password',
+  'askpass.placeholder': 'Password',
+  'askpass.submit': 'Submit',
+  'askpass.cancel': 'Cancel',
+  'askpass.otherTab': 'sudo is asking for a password in the browser tab that started this command',
+  'error.empty': 'Type a command after !',
+  'error.quietDisabled': '!! commands are turned off',
+  'error.attachments': 'Shell commands cannot carry attachments',
+  'error.request': 'The request failed',
+} satisfies Record<string, string>
+
+/** Key union of the namespace. */
+export type UserShellKey = keyof typeof en
+
+/** Simplified Chinese dictionary, checked complete against the English key set. */
+export const zh = {
+  'mode.context': 'Shell 命令 · 输出将发送给智能体',
+  'mode.quiet': 'Shell 命令 · 输出不进入智能体上下文',
+  'mode.unsupported': '此版本的 dsh 会把 ! 开头的内容发给智能体；请使用 /sh <命令> 或 /shq <命令>',
+  'badge.context': 'Shell 命令，输出已加入智能体上下文',
+  'badge.quiet': 'Shell 命令，输出未加入智能体上下文',
+  'status.running': '运行中…',
+  'status.starting': '正在启动…',
+  'status.exit': '退出码 {code}',
+  'status.signal': '被 {signal} 终止',
+  'status.cancelled': '已取消',
+  'status.timeout': '已超时',
+  'status.failed': '启动失败：{reason}',
+  'status.duration': '{seconds} 秒',
+  'output.empty': '无输出',
+  'output.truncated': '较早的输出未在此显示',
+  'output.full': '完整输出：{path}',
+  'context.added': '将随你的下一条消息发送给智能体',
+  'context.skipped': '未加入智能体上下文',
+  'action.cancel': '取消',
+  'askpass.label': 'sudo 需要密码',
+  'askpass.placeholder': '密码',
+  'askpass.submit': '提交',
+  'askpass.cancel': '取消',
+  'askpass.otherTab': 'sudo 正在启动此命令的浏览器标签页中请求密码',
+  'error.empty': '请在 ! 后输入命令',
+  'error.quietDisabled': '!! 命令已关闭',
+  'error.attachments': 'Shell 命令不能携带附件',
+  'error.request': '请求失败',
+} satisfies Record<UserShellKey, string>

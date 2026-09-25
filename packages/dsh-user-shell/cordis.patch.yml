@@ -1,0 +1,7 @@
+# dsh-user-shell bundle patch: `dsh plugin --profile web add dsh-user-shell`
+# reads `dsh.bundle.patch` from package.json and merges this layer into the
+# profile, which inserts the plugin row. Configure it with a profile patch that
+# targets the `user-shell` id (see README "Configuration").
+- insert:
+    - id: user-shell
+      name: dsh-user-shell
