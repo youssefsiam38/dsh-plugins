@@ -1,0 +1,7 @@
+node_modules/
+lib/
+*.tgz
+.artifacts/
+coverage/
+test-results/
+playwright-report/

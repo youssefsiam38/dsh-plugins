@@ -1,0 +1,7 @@
+# dsh-session-retry bundle patch: `dsh plugin --profile <name> add dsh-session-retry`
+# reads `dsh.bundle.patch` from package.json and merges this layer into the
+# profile, which inserts the plugin row. Configure it with a profile patch that
+# targets the `session-retry` id (see README "Configuration").
+- insert:
+    - id: session-retry
+      name: dsh-session-retry
