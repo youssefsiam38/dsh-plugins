@@ -28,7 +28,7 @@ dsh plugin --profile web add dsh-session-retry
 From a packed tarball (for example one built from this repository with `pnpm pack`):
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-session-retry-0.1.0.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-session-retry-0.2.0.tgz
 ```
 
 The command adds the package to the profile and selects its bundle; the bundle patch (`cordis.patch.yml`) inserts one plugin row with id `session-retry`. The Web plugin page (**Plugins** in the sidebar) can do the same. Restart dsh if the profile does not reload live.
@@ -72,7 +72,17 @@ The jitter for each slot is derived from the session id, the failing turn's log 
 
 If a scheduled attempt fails too, the next wait is computed from that failure (*n*⁴ for the attempt that just failed).
 
-Retries run while the session is loaded in dsh, like dsh's own scheduled reminders. If dsh was restarted, or the session was not open when a slot came due, the most recent missed slot runs once when the session is loaded again; older missed slots count as used.
+### After a restart
+
+Retries do not depend on anyone having the session open. When dsh starts (every deploy restarts it), the plugin waits `resumeDelaySeconds`, looks for stored sessions whose retry is still waiting, and opens each one the same way the Web UI does when you click it. The most recent missed slot then runs once; older missed slots count as used. A retry chain therefore keeps going by itself for its whole budget (about 25 days by default), across any number of restarts.
+
+What the start-up sweep does and does not touch:
+
+- It reads the `session-retry` value that dsh's projection cache already stores for every session, so it does not read session logs. A deployment without the projection cache (every stock profile has it) falls back to reading each log.
+- It only opens sessions whose retry is waiting and whose failure is inside the budget's horizon (every backoff at its largest jitter: about 27 days with the defaults). Stopped, cancelled, exhausted, finished, archived, and subagent sessions stay closed.
+- It opens sessions through the Web profile's session controller, so a session gets exactly the composition (preset, model selection, tools) it would get if you opened it. Profiles without that controller (for example headless) skip the sweep and log that once; their retries run while a session is loaded.
+- It opens at most `resumeConcurrency` sessions at a time, and logs one summary line such as `session-retry: start-up sweep resumed 2 of 2 sessions with a waiting retry (41 stored, 0 failed, 12 ms)`. The line carries counts only, never prompts or tool results.
+- A session it opens stays loaded, as if you had opened it.
 
 ## Configuration
 
@@ -86,6 +96,9 @@ All settings are optional. Override them in your profile's `cordis.patch.yml` by
       exponent: 4                # wait after attempt n is n^exponent seconds
       jitterRatio: 0.1           # ± fraction of the wait
     readySignals: true           # let conditions run a pending attempt early
+    resumeOnStart: true          # open sessions with a waiting retry when dsh starts
+    resumeConcurrency: 4         # sessions the start-up sweep opens at the same time
+    resumeDelaySeconds: 5        # wait after start so other plugins can register their conditions
     continuation: '(Automatic retry {attempt}/{maxAttempts}: {reason}. Continue the previous request.)'
     builtins:
       rate-limit:
@@ -95,6 +108,8 @@ All settings are optional. Override them in your profile's `cordis.patch.yml` by
 ```
 
 `continuation` is the text the model receives; `{attempt}`, `{maxAttempts}`, and `{reason}` are filled in.
+
+Conditions another plugin registers later than `resumeDelaySeconds` after start are not seen by the start-up sweep; a session waiting on such a condition resumes when it is opened.
 
 ## Adding your own retry conditions
 
@@ -196,9 +211,9 @@ pnpm --filter dsh-session-retry run build
 pnpm --filter dsh-session-retry run pack:tarball   # writes .artifacts/dsh-session-retry-<version>.tgz
 ```
 
-The tests run the plugin inside the published dsh agent loop with a scripted model: backoff math, classification, restart from a stored log, uninstall safety, a person's message cancelling, exhaustion, third-party conditions with readiness, the Loader composition, and the browser block.
+The tests run the plugin inside the published dsh agent loop with a scripted model: backoff math, classification, restart from a stored log, the start-up sweep over a JSONL store and the projection cache, uninstall safety, a person's message cancelling, exhaustion, third-party conditions with readiness, the Loader composition, and the browser block.
 
-The browser test (`e2e/`) installs the packed plugin and a test-only model route into a throwaway `DSH_HOME` with `dsh plugin add`, boots the `web` profile, and drives Chromium through the block, its tooltip, **Retry now**, **Stop**, and cancellation by a new message. Point it at a dsh build:
+The browser test (`e2e/`) installs the packed plugin and a test-only model route into a throwaway `DSH_HOME` with `dsh plugin add`, boots the `web` profile, and drives Chromium through the block, its tooltip, **Retry now**, **Stop**, and cancellation by a new message. It then closes the browser, restarts the server, and checks in the stored log that the waiting retry ran without the session being opened. Point it at a dsh build:
 
 ```sh
 # a built dsh checkout
@@ -207,7 +222,7 @@ DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-session-retry run t
 DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-session-retry run test:e2e
 ```
 
-Without either variable the browser test is skipped. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
+Without either variable the browser test is skipped. `DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME` for inspection. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
 
 ## License
 

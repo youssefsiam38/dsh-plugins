@@ -1,0 +1,8 @@
+# Restart overlay for the browser test: after the restart every backoff is
+# n^1 seconds, so the slot that was 17 minutes away is already due and the
+# start-up sweep runs it without the session being opened.
+- id: session-retry
+  config:
+    backoff:
+      exponent: 1
+    resumeDelaySeconds: 0

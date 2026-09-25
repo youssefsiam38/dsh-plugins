@@ -12,10 +12,11 @@
 
 import { spawn, spawnSync } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { zstdDecompressSync } from 'node:zlib'
 import { chromium } from 'playwright'
 import type { Browser, Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
@@ -24,6 +25,7 @@ const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 const ARTIFACTS = join(PACKAGE_DIR, '..', '..', '.artifacts')
 const FIXTURE = join(PACKAGE_DIR, 'e2e', 'model-fixture')
 const OVERLAY = join(PACKAGE_DIR, 'e2e', 'overlay.yml')
+const RESTART_OVERLAY = join(PACKAGE_DIR, 'e2e', 'restart-overlay.yml')
 const SCREENSHOT = process.env['DSH_E2E_SCREENSHOT']
 
 function launcher(): { command: string; args: string[]; cwd?: string } | undefined {
@@ -52,8 +54,16 @@ function runDsh(home: string, args: string[]): void {
   if (result.status !== 0) throw new Error(`dsh ${args.join(' ')} failed:\n${result.stdout}\n${result.stderr}`)
 }
 
-function serve(home: string): Promise<{ child: ChildProcess; url: string }> {
-  const child = spawn(dsh!.command, [...dsh!.args, '--profile', 'web', '--patch', OVERLAY, '--no-open', '--port', '0'], {
+interface Served {
+  readonly child: ChildProcess
+  readonly url: string
+  /** Everything the server printed so far. */
+  output(): string
+}
+
+function serve(home: string, patches: readonly string[] = []): Promise<Served> {
+  const extra = patches.flatMap(patch => ['--patch', patch])
+  const child = spawn(dsh!.command, [...dsh!.args, '--profile', 'web', '--patch', OVERLAY, ...extra, '--no-open', '--port', '0'], {
     cwd: dsh!.cwd, env: { ...process.env, DSH_HOME: home }, stdio: ['ignore', 'pipe', 'pipe'], detached: true,
   })
   return new Promise((resolve, reject) => {
@@ -64,7 +74,7 @@ function serve(home: string): Promise<{ child: ChildProcess; url: string }> {
       const url = /dsh web: (http:\/\/\S+)/.exec(output)?.[1]
       if (url !== undefined) {
         clearTimeout(timer)
-        resolve({ child, url })
+        resolve({ child, url, output: () => output })
       }
     }
     child.stdout!.on('data', read)
@@ -74,6 +84,51 @@ function serve(home: string): Promise<{ child: ChildProcess; url: string }> {
       reject(new Error(`dsh web exited with ${String(code)}:\n${output}`))
     })
   })
+}
+
+/** Stop a server's process group and wait for it to exit. */
+async function stop(child: ChildProcess): Promise<void> {
+  if (child.pid === undefined || child.exitCode !== null) return
+  const exited = new Promise<void>((resolve) => { child.once('exit', () => { resolve() }) })
+  try {
+    process.kill(-child.pid, 'SIGTERM')
+  } catch (error: unknown) {
+    // The server group already exited.
+    void error
+    return
+  }
+  await exited
+}
+
+const ZSTD_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd])
+
+/** Decode a log of appended zstd frames; `zstdDecompressSync` stops after the first frame. */
+function zstdText(bytes: Buffer): string {
+  const starts: number[] = []
+  for (let index = bytes.indexOf(ZSTD_MAGIC); index >= 0; index = bytes.indexOf(ZSTD_MAGIC, index + 1)) starts.push(index)
+  let text = ''
+  let begin = starts[0] ?? bytes.length
+  for (let next = 1; next <= starts.length; next += 1) {
+    const end = next < starts.length ? starts[next]! : bytes.length
+    try {
+      text += zstdDecompressSync(bytes.subarray(begin, end)).toString('utf8')
+      begin = end
+    } catch (error: unknown) {
+      // The magic bytes occurred inside a frame: extend the slice to the next candidate.
+      void error
+    }
+  }
+  return text
+}
+
+/** Every stored session log under `DSH_HOME/sessions`, decompressed. */
+async function sessionLogs(home: string): Promise<string[]> {
+  const root = join(home, 'sessions')
+  const files = (await readdir(root, { recursive: true })).filter(file => /\.jsonl(\.zstd)?$/.test(file))
+  return Promise.all(files.map(async (file) => {
+    const bytes = await readFile(join(root, file))
+    return file.endsWith('.zstd') ? zstdText(bytes) : bytes.toString('utf8')
+  }))
 }
 
 async function send(page: Page, text: string): Promise<void> {
@@ -91,7 +146,7 @@ async function send(page: Page, text: string): Promise<void> {
 
 describe.skipIf(dsh === undefined)('retry block in the dsh Web UI', () => {
   let home: string
-  let server: ChildProcess | undefined
+  let server: Served | undefined
   let url: string
   let browser: Browser
   let page: Page
@@ -100,9 +155,8 @@ describe.skipIf(dsh === undefined)('retry block in the dsh Web UI', () => {
     home = await mkdtemp(join(tmpdir(), 'dsh-session-retry-e2e-'))
     runDsh(home, ['plugin', '--profile', 'web', 'add', await packedTarball()])
     runDsh(home, ['plugin', '--profile', 'web', 'add', FIXTURE])
-    const served = await serve(home)
-    server = served.child
-    url = served.url
+    server = await serve(home)
+    url = server.url
     browser = await chromium.launch()
     page = await browser.newPage({ locale: 'en-US', timezoneId: 'UTC', viewport: { width: 1280, height: 800 } })
     await page.goto(url, { waitUntil: 'load' })
@@ -110,15 +164,9 @@ describe.skipIf(dsh === undefined)('retry block in the dsh Web UI', () => {
 
   afterAll(async () => {
     await browser?.close()
-    if (server?.pid !== undefined) {
-      try {
-        process.kill(-server.pid, 'SIGTERM')
-      } catch (error: unknown) {
-        // The server group already exited.
-        void error
-      }
-    }
-    await rm(home, { recursive: true, force: true })
+    if (server !== undefined) await stop(server.child)
+    if (process.env['DSH_E2E_KEEP_HOME'] === undefined) await rm(home, { recursive: true, force: true })
+    else console.log(`DSH_HOME kept at ${home}`)
   })
 
   it('shows the count and next time, reveals the exact time on hover, and retries now', async () => {
@@ -164,5 +212,30 @@ describe.skipIf(dsh === undefined)('retry block in the dsh Web UI', () => {
     await block.getByRole('button', { name: 'Stop' }).click()
     await expect.poll(() => block.count(), { timeout: 30_000 }).toBe(0)
     await page.getByText('Automatic retries stopped.').waitFor({ timeout: 10_000 })
+  }, 300_000)
+
+  it('continues a waiting retry after a restart without the session being opened', async () => {
+    onTestFailed(async () => {
+      if (!page.isClosed()) await page.screenshot({ path: join(tmpdir(), 'dsh-session-retry-e2e-restart.png') })
+      await writeFile(join(tmpdir(), 'dsh-session-retry-e2e-restart.log'), server?.output() ?? '')
+    })
+    await page.getByRole('button', { name: 'New Session' }).first().click()
+    await page.locator('[data-composer-input][data-placeholder^="Describe what you want to build"]').waitFor({ timeout: 30_000 })
+    await send(page, 'Restart the workers, FAIL')
+    const block = page.locator('.dsh-session-retry-block')
+    await block.getByText(/Retrying 3\/25/).waitFor({ timeout: 120_000 })
+    // The projection cache writes the failing turn's checkpoint in the background; give it a moment,
+    // then close every browser view and restart the host.
+    await new Promise(resolve => setTimeout(resolve, 2_000))
+    await page.close()
+    await stop(server!.child)
+
+    server = await serve(home, [RESTART_OVERLAY])
+    const restarted = async () => (await sessionLogs(home)).find(text => text.includes('Restart the workers, FAIL')) ?? ''
+    await expect.poll(async () => (await restarted()).includes('Answered: (Automatic retry'), { timeout: 120_000, interval: 1_000 }).toBe(true)
+    const log = await restarted()
+    const retries = log.split('\n').filter(line => line.includes('"kind":"session-retry"') && line.includes('"type":"user/message"'))
+    // Attempt 2 ran before the restart; the sweep ran exactly one later slot.
+    expect(retries).toHaveLength(2)
   }, 300_000)
 })

@@ -13,7 +13,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-commands'
 import type { BuiltinConditionsConfig } from './conditions.ts'
@@ -21,10 +21,13 @@ import { builtinConditions, DEFAULT_BUILTIN_CONDITIONS } from './conditions.ts'
 import type { MatchedFailure, RetryBudget } from './decision.ts'
 import { firstMatch, retryView } from './decision.ts'
 import type { RetryFoldState } from './fold.ts'
+import type { FoldEvent } from './fold.ts'
 import { foldRetryEvents, latestFailure, RETRY_COMMAND } from './fold.ts'
 import type { BackoffPolicy } from './policy.ts'
 import { DEFAULT_BACKOFF } from './policy.ts'
 import { PROJECTION_KEY, retryProjection } from './projection.ts'
+import type { ResumeSweepHost } from './resume.ts'
+import { sweepPendingSessions } from './resume.ts'
 import type { ManualRetryResult } from './runtime.ts'
 import { RetryRuntime } from './runtime.ts'
 import type { RetryCondition, SessionRetryMessageSource, SessionRetryView } from './types.ts'
@@ -33,6 +36,8 @@ export type * from './types.ts'
 export type { BackoffPolicy, RetrySchedule } from './policy.ts'
 export type { BuiltinConditionConfig, BuiltinConditionsConfig } from './conditions.ts'
 export type { ManualRetryResult } from './runtime.ts'
+export type { ResumeSweepSummary } from './resume.ts'
+export { resumeHorizonMs } from './resume.ts'
 export type { RetryFoldState } from './fold.ts'
 export {
   backoffSeconds, backoffSecondsWithoutJitter, DEFAULT_BACKOFF, MAX_BACKOFF_SECONDS, retrySchedule, slotRandom,
@@ -64,6 +69,32 @@ export interface Config {
   readySignals?: boolean
   /** Continuation text; `{attempt}`, `{maxAttempts}`, and `{reason}` are substituted. */
   continuation?: string
+  /** Load stored sessions with a waiting retry chain when the host starts. Default true. */
+  resumeOnStart?: boolean
+  /** Sessions the start-up sweep loads at the same time. Default 4. */
+  resumeConcurrency?: number
+  /** Seconds between plugin load and the start-up sweep, so later plugins can register their conditions. Default 5. */
+  resumeDelaySeconds?: number
+}
+
+/** The host's session-open path (`sessionController.resolveAgent` in the Web profile). */
+interface SessionOpener {
+  resolveAgent(sessionId: SessionId): Promise<{ readonly agent: Agent } | { readonly error: Error }>
+}
+
+/** The parts of `sessionPersistence` the sweep reads. */
+interface StoredSessions {
+  list(options?: { readonly signal?: AbortSignal }): Promise<readonly { readonly header: SessionHeader }[]>
+  open(sessionId: SessionId, access: 'read', options?: { readonly signal?: AbortSignal }): Promise<{
+    readonly inheritedEventCount: number
+    read(offset?: number, length?: number, options?: { readonly signal?: AbortSignal }): Promise<{ readonly events: readonly FoldEvent[] }>
+    close(): Promise<void>
+  }>
+}
+
+/** The parts of `sessionProjectionCache` the sweep reads. */
+interface ProjectionCache {
+  cachedSnapshot(meta: SessionHeader, keys?: readonly string[]): { readonly values: Readonly<Record<string, unknown>> } | undefined
 }
 
 function builtinSchema(id: keyof BuiltinConditionsConfig) {
@@ -119,6 +150,9 @@ export class SessionRetryService extends Service {
     }),
     readySignals: z.boolean().default(true),
     continuation: z.string().default(DEFAULT_CONTINUATION),
+    resumeOnStart: z.boolean().default(true),
+    resumeConcurrency: z.natural().min(1).max(64).default(4),
+    resumeDelaySeconds: z.number().min(0).max(3600).default(5),
   })
 
   /** Budget and backoff in force. */
@@ -169,6 +203,8 @@ export class SessionRetryService extends Service {
       return Promise.allSettled(runtimes.map(runtime => runtime.dispose())).then(() => undefined)
     }, 'sessionRetry.runtimes()')
 
+    if (config.resumeOnStart ?? true) this.scheduleResumeSweep(config)
+
     ctx.inject(['commands'], (commandCtx) => {
       commandCtx.commands.register({
         name: RETRY_COMMAND,
@@ -217,6 +253,86 @@ export class SessionRetryService extends Service {
     const agent = this.ctx.agents.get(sessionId)
     const runtime = agent === undefined ? undefined : this.runtimes.get(agent)
     return runtime === undefined ? { ok: false, reason: 'nothing-pending' } : runtime.retryNow()
+  }
+
+  /**
+   * Once the host's session-open path and session storage are available, wait
+   * `resumeDelaySeconds` and load every stored session whose retry chain is
+   * waiting (see `./resume.ts`).
+   */
+  private scheduleResumeSweep(config: Config): void {
+    const concurrency = config.resumeConcurrency ?? 4
+    const delayMs = (config.resumeDelaySeconds ?? 5) * 1000
+    this.ctx.inject(['sessionPersistence', 'sessionController'], (sweepCtx) => {
+      const opener: SessionOpener | undefined = sweepCtx.get('sessionController')
+      const storage: StoredSessions | undefined = sweepCtx.get('sessionPersistence')
+      if (typeof opener?.resolveAgent !== 'function' || storage === undefined) {
+        sweepCtx.logger.warn('session-retry: the session controller cannot open sessions; the start-up sweep is off')
+        return
+      }
+      const abort = new AbortController()
+      let running: Promise<void> | undefined
+      const timer = setTimeout(() => {
+        running = this.runResumeSweep(opener, storage, concurrency, abort.signal)
+      }, delayMs)
+      sweepCtx.effect(() => async () => {
+        clearTimeout(timer)
+        abort.abort()
+        await running
+      }, 'sessionRetry.resumeSweep()')
+    })
+  }
+
+  private async runResumeSweep(opener: SessionOpener, storage: StoredSessions, concurrency: number, signal: AbortSignal): Promise<void> {
+    const started = Date.now()
+    const cache: ProjectionCache | undefined = this.ctx.get('sessionProjectionCache')
+    const workspace: { readonly archivedSessionIds?: unknown } | undefined = this.ctx.get('workspaceRegistry')
+    const host: ResumeSweepHost = {
+      list: async listSignal => (await storage.list({ signal: listSignal })).map(snapshot => snapshot.header),
+      isLive: sessionId => this.ctx.agents.get(sessionId) !== undefined,
+      isArchived: (sessionId) => {
+        const archived = workspace?.archivedSessionIds
+        return Array.isArray(archived) && archived.includes(sessionId)
+      },
+      cachedView: (header) => {
+        if (cache === undefined) return undefined
+        let values: Readonly<Record<string, unknown>> | undefined
+        try {
+          values = cache.cachedSnapshot(header, [PROJECTION_KEY])?.values
+        } catch (error: unknown) {
+          // An unreadable cache row counts as missing; the session's own log still decides once it is opened.
+          void error
+          return undefined
+        }
+        if (values === undefined || !Object.hasOwn(values, PROJECTION_KEY)) return undefined
+        return values[PROJECTION_KEY] as SessionRetryView | null
+      },
+      // Without a projection cache the only source is the log itself.
+      readView: cache !== undefined ? undefined : async (header, readSignal) => {
+        const handle = await storage.open(header.id, 'read', { signal: readSignal })
+        try {
+          const { events } = await handle.read(0, undefined, { signal: readSignal })
+          return this.viewOf(foldRetryEvents(header.id, events, handle.inheritedEventCount))
+        } finally {
+          await handle.close()
+        }
+      },
+      open: async (sessionId) => {
+        const result = await opener.resolveAgent(sessionId)
+        if ('error' in result) throw result.error
+      },
+      now: () => Date.now(),
+    }
+    try {
+      const summary = await sweepPendingSessions(host, { budget: this.budget, concurrency }, signal, (message) => {
+        this.ctx.logger.warn(message)
+      })
+      if (signal.aborted) return
+      const uncached = summary.uncached === 0 ? '' : `, ${summary.uncached} without a cached retry state skipped`
+      this.ctx.logger.info(`session-retry: start-up sweep resumed ${summary.resumed} of ${summary.pending} sessions with a waiting retry (${summary.listed} stored, ${summary.failed} failed${uncached}, ${Date.now() - started} ms)`)
+    } catch (error: unknown) {
+      if (!signal.aborted) this.ctx.logger.warn(`session-retry: start-up sweep failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
   }
 
   private addCondition(condition: RetryCondition): () => void {

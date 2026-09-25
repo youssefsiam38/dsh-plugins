@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-retry",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Automatic session retries for DeepSeek Harness: a turn that fails on a transient error ends normally, waits with growing backoff, and continues by itself until it succeeds, a person writes, or it gives up.",
   "license": "MIT",
   "type": "module",
@@ -111,6 +111,10 @@
     "@deepseek-ai/dsh-session-persistence": "0.1.7-rc.2",
     "@deepseek-ai/dsh-session-persistence-jsonl": "0.1.7-rc.2",
     "@deepseek-ai/dsh-session-projection": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-session-projection-cache": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-storage": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-storage-domain": "0.1.7-rc.2",
+    "@deepseek-ai/dsh-storage-json": "0.1.7-rc.2",
     "@deepseek-ai/dsh-system-prompt": "0.1.7-rc.2",
     "@deepseek-ai/dsh-tools": "0.1.7-rc.2",
     "@deepseek-ai/schemastery": "~3.18.4",
