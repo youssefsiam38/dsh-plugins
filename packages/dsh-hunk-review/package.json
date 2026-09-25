@@ -30,6 +30,7 @@
   ],
   "keywords": [
     "deepseek",
+    "deepseek-harness",
     "harness",
     "dsh",
     "dsh-plugin",
@@ -41,6 +42,10 @@
     "type": "git",
     "url": "git+https://github.com/youssefsiam38/dsh-plugins.git",
     "directory": "packages/dsh-hunk-review"
+  },
+  "homepage": "https://github.com/youssefsiam38/dsh-plugins/tree/main/packages/dsh-hunk-review#readme",
+  "bugs": {
+    "url": "https://github.com/youssefsiam38/dsh-plugins/issues"
   },
   "engines": {
     "node": "^22.19 || >=24",

@@ -136,10 +136,15 @@ The unit tests cover ranking, prefixes, grouping, recents, and hotkey matching; 
 The browser test (`e2e/`) installs the packed plugin and a test-only model route into a throwaway `DSH_HOME`, boots the `web` profile with message search on, and drives Chromium through the hotkey, a new session, message search and reveal, the nested model page and a model switch, slash commands, a settings page, themes, recents, and the phone-width sheet:
 
 ```sh
+# @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
+pnpm --filter dsh-command-menu run test:e2e
+# another npm version, a built dsh checkout, or any other launcher
+DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-command-menu run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-command-menu run test:e2e
+DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-command-menu run test:e2e
 ```
 
-Without `DSH_E2E_CHECKOUT` (or `DSH_E2E_BIN`) the browser test is skipped. `DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME`; `DSH_E2E_SCREENSHOT=/path.png` saves a screenshot of the open menu. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
+`DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME`; `DSH_E2E_SCREENSHOT=/path.png` saves a screenshot of the open menu. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
 
 Design notes and research: [docs/design.md](docs/design.md).
 

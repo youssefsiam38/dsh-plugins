@@ -2,7 +2,7 @@
  * The per-run shell prelude and its marker protocol.
  *
  * Every run executes `/bin/sh -c PRELUDE dsh-user-shell <command> <nonce>
- * <shell> <askpass>` on the target (the server or the session's machine). The
+ * <shell> <askpass>` on the target (the server or the session's execution target). The
  * prelude creates a private 0700 directory, announces it with a marker line on
  * its own stderr, optionally materializes a `sudo` wrapper (real sudo with
  * `-A`) and an askpass helper there, runs the command with the user's shell

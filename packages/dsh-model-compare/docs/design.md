@@ -67,7 +67,7 @@ A lane is an ordinary dsh session forked from the source: its own log, model, an
 - `none` (default): `restrict({ allow: [] })` hides every tool the lane inherits (global and preset tools), and the guard denies every call.
 - `read-only`: the configured allowlist, narrowed to the tools the lane actually has (`restrict` fails on unknown names; narrowing never widens). The guard allows exactly those names.
 - `all`: nothing is restricted. The setup form says that several models may change the workspace at once.
-- `restrict` does not filter tools registered on the lane's own agent scope. In the fork's Web profile the `subagent` tool is registered that way (with model-selection settings), so it stays in the lane's tool list; the guard denies its calls. The guard also covers PTC `run_code`, which `restrict` leaves visible; in PTC mode no tool can run in a lane unless `run_code` is allowlisted.
+- `restrict` does not filter tools registered on the lane's own agent scope. In some Web profiles the `subagent` tool is registered that way (with model-selection settings), so it stays in the lane's tool list; the guard denies its calls. The guard also covers PTC `run_code`, which `restrict` leaves visible; in PTC mode no tool can run in a lane unless `run_code` is allowlisted.
 - The policy is not stored in the lane's log: it comes from the lane index each time the lane's agent is created. With the plugin uninstalled, lanes are ordinary sessions (they are archived once their comparison closes).
 
 ## Statistics

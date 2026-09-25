@@ -6,6 +6,8 @@ Shell commands you run yourself from the [DeepSeek Harness](https://github.com/d
 - `!!ls -la` runs the same way, but the output never reaches the agent. It is only recorded for you.
 - `! sudo apt install jq` shows a password field in the chat when sudo asks for a password. The password goes straight to sudo and is never logged or stored.
 
+On dsh builds whose composer has no line-prefix input sources, including `@deepseek-ai/dsh@0.1.7-rc.2` on npm, type `/sh <command>` and `/shq <command>` instead of `!` and `!!` (see [Compatibility](#compatibility)).
+
 ## Contents
 
 - [Install](#install)
@@ -47,14 +49,14 @@ The bundle patch (`cordis.patch.yml`) inserts one plugin row with id `user-shell
 
 The block reads the durable record of the run, so it looks the same after a reload or on another device.
 
-**Older dsh versions.** If the composer does not support line-prefix input sources (see [Compatibility](#compatibility)), a `!` line would be sent to the agent as an ordinary message. In that case the chip turns red and asks you to use the equivalent commands `/sh <command>` (output goes to the agent) and `/shq <command>` (it does not). Those commands exist on every host and behave the same, except that the composer stays busy until the command ends.
+**dsh without line-prefix sources.** If the composer does not support line-prefix input sources (see [Compatibility](#compatibility)), a `!` line would be sent to the agent as an ordinary message. In that case the chip turns red and asks you to use the equivalent commands `/sh <command>` (output goes to the agent) and `/shq <command>` (it does not). Those commands exist on every host and behave the same, except that the composer stays busy until the command ends.
 
 ## Where commands run
 
 A command runs in the session's working directory, through the same execution service the agent's tools use (`ctx.subprocess`):
 
 - For a server workspace, it runs on the dsh server as the user that runs dsh.
-- For a paired-machine workspace (`/machines/<machine>/…`, in builds that have machines), it runs on that machine through the machine router, as the machine's owner.
+- For a workspace that a dsh build routes to another execution target, it runs on that target.
 
 The command runs under your shell (`$SHELL` on the target, or the `shell` setting) with `sh -c` semantics. stdin is `/dev/null` and there is no terminal, so interactive programs fail fast instead of hanging. stderr is merged into stdout. `PAGER` and `GIT_PAGER` are set to `cat` and `TERM` to `dumb` (see `env`).
 
@@ -152,7 +154,7 @@ All settings are optional. Override them in your profile's `cordis.patch.yml` by
 
 ## Security
 
-- Commands start only from the authenticated Web connection: the `/api/user-shell/*` routes, which pass dsh's browser authentication (the launch-token cookie, or Cloudflare Access when configured), and the `/sh` and `/shq` commands over the Web command channel. The plugin registers no model tool. In a profile without the Web connection (headless, ACP), it registers neither routes nor commands, so nothing can start a run.
+- Commands start only from the authenticated Web connection: the `/api/user-shell/*` routes, which pass dsh's browser authentication (the launch-token cookie), and the `/sh` and `/shq` commands over the Web command channel. The plugin registers no model tool. In a profile without the Web connection (headless, ACP), it registers neither routes nor commands, so nothing can start a run.
 - Password answers are accepted only for a pending request of a running command. When a browser tab started the run, only that tab's random owner token is accepted. A run started through `/sh` or `/shq` has no owner, so any authenticated tab can answer it.
 - Commands run with the permissions of the account that runs the execution provider. They bypass the agent's sandbox and approval policy, because you run them.
 
@@ -166,8 +168,7 @@ All settings are optional. Override them in your profile's `cordis.patch.yml` by
 
 ## Compatibility
 
-- dsh `>=0.1.7-rc.1 <0.2`. `!` and `!!` in the composer need line-prefix input-trigger sources (`LineTriggerChar` in `@deepseek-ai/dsh-client-ui-input-trigger`, added by the fork branch `line-prefix input-trigger branch`). Without them, use `/sh` and `/shq`. The composer chip shows which one applies, and a line is handled by only one of the two paths.
-- Paired-machine routing needs a build with the machines bundle. On other builds, commands run on the dsh server.
+- dsh `>=0.1.7-rc.1 <0.2`. `!` and `!!` in the composer need line-prefix input-trigger sources (`LineTriggerChar` in `@deepseek-ai/dsh-client-ui-input-trigger`), which published dsh versions up to 0.1.7-rc.2 do not have. Without them, use `/sh` and `/shq`. The composer chip shows which one applies, and a line is handled by only one of the two paths.
 - Node.js `^22.19 || >=24`. Targets need a POSIX `sh` with `mktemp -d`, `mkfifo`, and `base64`.
 - The browser half targets the dsh Web client (`dsh.client.platform: web`).
 
@@ -194,19 +195,24 @@ The unit tests run the plugin inside the published dsh agent loop, with the loca
 
 The browser test (`e2e/`) installs the packed plugin and a test-only model route into a throwaway `DSH_HOME`, boots the `web` profile with a fake `sudo` first on the commands' `PATH`, and drives Chromium through:
 
-- `!echo hi` reaching the model only with the next message;
-- `!!` staying out of it;
+- `!echo hi` (or `/sh echo hi`) reaching the model only with the next message;
+- `!!` (or `/shq`) staying out of it;
 - **Cancel**;
 - the sudo password prompt;
 - a scan of every file under `DSH_HOME` for the password.
 
-Point it at a dsh build that has the line-prefix seam:
+It uses `!` and `!!` when the composer claims `!` lines, and `/sh` and `/shq` otherwise.
 
 ```sh
+# @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
+pnpm --filter dsh-user-shell run test:e2e
+# another npm version, a built dsh checkout, or any other launcher
+DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-user-shell run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-user-shell run test:e2e
+DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-user-shell run test:e2e
 ```
 
-Without `DSH_E2E_CHECKOUT` (or `DSH_E2E_BIN`) the browser test is skipped. `DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME`. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
+`DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME`. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
 
 ## License
 

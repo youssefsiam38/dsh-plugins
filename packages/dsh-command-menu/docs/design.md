@@ -45,7 +45,7 @@ Recents are entry ids (`session:<id>`, `command:<name>`, `settings:<id>`, ...) i
 | `Tab` | Stays in the field (the dialog has one stop) |
 | `>` `/` `@` `#` `?` as the first character | Narrow to a scope |
 
-The global listener ignores a keydown that another handler already took (`defaultPrevented`), a key held down, and input-method composition, and it skips targets inside `[data-command-menu-ignore]`. The dsh Web client binds no `Mod+K` today (the composer keymap handles Enter, arrows, Tab, Escape, Space, and paste only; the fork's Machines plugin uses `Alt` chords). `@hytime/dsh-client-ui-shortcuts` binds `Meta+Alt+Shift` chords in a capture-phase listener, so the two coexist; if a user binds `Mod+K` there, that plugin prevents the default first and this menu stays closed.
+The global listener ignores a keydown that another handler already took (`defaultPrevented`), a key held down, and input-method composition, and it skips targets inside `[data-command-menu-ignore]`. The dsh Web client binds no `Mod+K` today (the composer keymap handles Enter, arrows, Tab, Escape, Space, and paste only). `@hytime/dsh-client-ui-shortcuts` binds `Meta+Alt+Shift` chords in a capture-phase listener, so the two coexist; if a user binds `Mod+K` there, that plugin prevents the default first and this menu stays closed.
 
 ## Seams
 

@@ -75,7 +75,7 @@ Lines outside the chosen hunks stay as they are, including your own edits elsewh
 
 - **File the agent created.** Reverting all its hunks leaves an empty file. dsh's file service cannot delete files, so the tab says so; delete it yourself if you want it gone.
 - **File the agent deleted.** Reverting recreates it with its old content.
-- **Machine workspaces.** Reads and writes go through `ctx.fs` with the session's working directory, so a workspace on a paired machine (`/machines/<machine>/…`) is reverted on that machine when the build routes the file service there.
+- **Remote workspaces.** Reads and writes go through `ctx.fs` with the session's working directory, so a workspace that a dsh build routes to another execution target is reverted there.
 - **While the agent works.** Reverts are refused while the agent is running a turn (it might be editing the same file), unless `revertWhileRunning` is on. Keeping is always allowed.
 
 ## What the agent sees
@@ -128,7 +128,7 @@ All settings are optional. Override them in your profile's `cordis.patch.yml` by
 
 ## Security
 
-- The routes (`/api/hunk-review/summary`, `review`, `keep`, `revert`) are registered only on the authenticated Web connection, so they pass dsh's browser authentication (the launch-token cookie, or Cloudflare Access when configured). Profiles without the Web connection, the file service, or the `workspace-changes` recorder register no routes.
+- The routes (`/api/hunk-review/summary`, `review`, `keep`, `revert`) are registered only on the authenticated Web connection, so they pass dsh's browser authentication (the launch-token cookie). Profiles without the Web connection, the file service, or the `workspace-changes` recorder register no routes.
 - A revert only writes files the turn's recorded summary lists, only in the lines of the chosen hunks, and only when those lines are still exactly what the agent left. Writes go through `ctx.fs`, so a sandboxing file backend applies its own rules.
 - The review serves the recorded hunks and, for a conflict, a few lines of the file as it is now. It serves no other file content.
 
@@ -169,10 +169,15 @@ The unit tests cover:
 The browser test (`e2e/`) installs the packed plugin and a test-only model route into a throwaway `DSH_HOME` with `dsh plugin add`, boots the `web` profile, and drives Chromium through: a turn that edits a file in a git workspace, the chip, the tab, `j` / `y` / `n`, the file on disk, a conflict after an outside edit and **Re-diff**, and the note reaching the model with the next message.
 
 ```sh
+# @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
+pnpm --filter dsh-hunk-review run test:e2e
+# another npm version, a built dsh checkout, or any other launcher
+DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-hunk-review run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-hunk-review run test:e2e
+DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-hunk-review run test:e2e
 ```
 
-Without `DSH_E2E_CHECKOUT` (or `DSH_E2E_BIN`) the browser test is skipped. `DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME`, and `DSH_E2E_SCREENSHOT=<path>` saves a screenshot of the review. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
+`DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME`, and `DSH_E2E_SCREENSHOT=<path>` saves a screenshot of the review. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
 
 ## License
 

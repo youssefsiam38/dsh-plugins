@@ -20,7 +20,7 @@ export type Spawner = Pick<SubprocessRuntime, 'spawn'>
 
 /** Settings of one run. */
 export interface ShellRunOptions {
-  /** Absolute working directory (a machine-qualified path runs on that machine). */
+  /** Absolute working directory; the execution service decides where it runs. */
   readonly cwd: string
   readonly command: string
   /** Shell path; empty uses `$SHELL` on the target, then `/bin/sh`. */

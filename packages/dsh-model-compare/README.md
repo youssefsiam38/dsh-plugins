@@ -76,7 +76,7 @@ The policy is applied before a lane's first request and again whenever a lane's 
 
 `tools: read-only` keeps a list of tools that only read (`read`, `read_image`, `grep`, `glob` by default). `tools: all` gives lanes every tool; the setup form then warns that several models may change the workspace at the same time.
 
-Tools that another plugin registers directly on each agent (in the fork's Web profile, `subagent`) stay in the lane's tool list, because dsh's tool restriction only covers tools an agent inherits. The guard still denies every call to them.
+Tools that another plugin registers directly on each agent (in some Web profiles, `subagent`) stay in the lane's tool list, because dsh's tool restriction only covers tools an agent inherits. The guard still denies every call to them.
 
 Continuing with an answer creates an ordinary session, so the conversation gets its normal tools back.
 
@@ -161,10 +161,15 @@ The unit tests run the plugin in the published dsh agent loop with a scripted mo
 The browser test (`e2e/`) installs the packed plugin and a test-only model route (`e2e/alpha`, `e2e/beta`) into a throwaway `DSH_HOME`, boots the `web` profile, and drives Chromium through a two-model comparison with statistics, continuing with one answer (which then runs on that model with its tools), a lane that tries to write a file (and cannot), and the phone layout with tabs:
 
 ```sh
+# @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
+pnpm --filter dsh-model-compare run test:e2e
+# another npm version, a built dsh checkout, or any other launcher
+DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-model-compare run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-model-compare run test:e2e
+DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-model-compare run test:e2e
 ```
 
-Without `DSH_E2E_CHECKOUT` (or `DSH_E2E_BIN`) the browser test is skipped. `DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME`; `DSH_E2E_SCREENSHOTS=<dir>` saves screenshots. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
+`DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME`; `DSH_E2E_SCREENSHOTS=<dir>` saves screenshots. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
 
 ## License
 

@@ -6,16 +6,16 @@
  * statistics, the lane tool policy, continuing with one answer, and the
  * phone layout with tabs.
  *
- * Choose the dsh to test with one of:
- * - `DSH_E2E_CHECKOUT=/path/to/deepseek-harness` runs `pnpm -s dsh` in a
- *   built checkout;
+ * Choose the dsh to test with:
+ * - nothing: `npx -y @deepseek-ai/dsh@<version>` from npm, where the version is
+ *   `DSH_E2E_VERSION` or the pinned `@deepseek-ai/dsh-*` dev dependency;
+ * - `DSH_E2E_CHECKOUT=/path/to/deepseek-harness` runs `pnpm -s dsh` in a built checkout;
  * - `DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next"` runs any other launcher.
- * Without either the suite is skipped.
  */
 
 import { spawn, spawnSync } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -30,7 +30,20 @@ const FIXTURE = join(PACKAGE_DIR, 'e2e', 'model-fixture')
 const SCREENSHOTS = process.env['DSH_E2E_SCREENSHOTS']
 const consoleLog: string[] = []
 
-function launcher(): { command: string; args: string[]; cwd?: string } | undefined {
+/**
+ * dsh version the default launcher runs: `DSH_E2E_VERSION`, else the pinned
+ * `@deepseek-ai/dsh-*` dev dependency of this package.
+ */
+function dshVersion(): string {
+  const fromEnv = process.env['DSH_E2E_VERSION']
+  if (fromEnv !== undefined && fromEnv !== '') return fromEnv
+  const manifest = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8')) as { devDependencies?: Record<string, string> }
+  const pinned = Object.entries(manifest.devDependencies ?? {}).find(([name]) => name.startsWith('@deepseek-ai/dsh-'))?.[1]
+  if (pinned === undefined) throw new Error('no pinned @deepseek-ai/dsh-* dev dependency; set DSH_E2E_VERSION')
+  return pinned
+}
+
+function launcher(): { command: string; args: string[]; cwd?: string } {
   const checkout = process.env['DSH_E2E_CHECKOUT']
   if (checkout !== undefined && checkout !== '') return { command: 'pnpm', args: ['-s', 'dsh'], cwd: checkout }
   const bin = process.env['DSH_E2E_BIN']
@@ -38,10 +51,24 @@ function launcher(): { command: string; args: string[]; cwd?: string } | undefin
     const [command, ...args] = bin.split(/\s+/)
     return { command: command!, args }
   }
-  return undefined
+  return { command: 'npx', args: ['-y', `@deepseek-ai/dsh@${dshVersion()}`] }
 }
 
 const dsh = launcher()
+
+/**
+ * Acknowledge stock dsh's first-run welcome notice in the profile's user patch
+ * layer, so its modal does not cover the page.
+ */
+async function acknowledgeWelcome(home: string): Promise<void> {
+  await writeFile(join(home, 'profiles', 'web', 'cordis.patch.yml'), [
+    '- id: ui-settings-general',
+    '  name: "@deepseek-ai/dsh-client-ui-settings-general"',
+    '  config:',
+    '    welcomeNoticeVersion: 2026-08-13.1',
+    '',
+  ].join('\n'))
+}
 
 async function packedTarball(): Promise<string> {
   const name = (await readdir(ARTIFACTS)).filter(file => /^dsh-model-compare-.*\.tgz$/.test(file)).sort().at(-1)
@@ -145,7 +172,7 @@ async function storedCompares(home: string): Promise<string> {
   return texts.join('\n')
 }
 
-describe.skipIf(dsh === undefined)('model comparison in the dsh Web UI', () => {
+describe('model comparison in the dsh Web UI', () => {
   let home: string
   let workspace: string
   let server: Served | undefined
@@ -165,6 +192,7 @@ describe.skipIf(dsh === undefined)('model comparison in the dsh Web UI', () => {
     ].join('\n'))
     runDsh(home, ['plugin', '--profile', 'web', 'add', await packedTarball()])
     runDsh(home, ['plugin', '--profile', 'web', 'add', FIXTURE])
+    await acknowledgeWelcome(home)
     server = await serve(home, overlay, workspace)
     browser = await chromium.launch()
     page = await browser.newPage({ locale: 'en-US', timezoneId: 'UTC', viewport: { width: 1440, height: 960 } })
@@ -201,8 +229,8 @@ describe.skipIf(dsh === undefined)('model comparison in the dsh Web UI', () => {
     const beta = page.locator('[data-model-compare-lane]').nth(1)
     await expect.poll(() => page.locator('[data-model-compare-lane]').count(), { timeout: 30_000 }).toBe(2)
     // Each lane answered with its own model, without workspace tools. (Tools a
-    // plugin registers on the lane's own agent scope, such as the fork's
-    // `subagent`, stay listed; the lane guard denies their calls.)
+    // plugin registers on the lane's own agent scope, such as
+    // `subagent` in some profiles, stay listed; the lane guard denies their calls.)
     const alphaAnswer = alpha.getByText(/^alpha: which is faster\? \| tools=/)
     const betaAnswer = beta.getByText(/^beta: which is faster\? \| tools=/)
     await alphaAnswer.waitFor({ timeout: 60_000 })

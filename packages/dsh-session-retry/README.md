@@ -213,16 +213,18 @@ pnpm --filter dsh-session-retry run pack:tarball   # writes .artifacts/dsh-sessi
 
 The tests run the plugin inside the published dsh agent loop with a scripted model: backoff math, classification, restart from a stored log, the start-up sweep over a JSONL store and the projection cache, uninstall safety, a person's message cancelling, exhaustion, third-party conditions with readiness, the Loader composition, and the browser block.
 
-The browser test (`e2e/`) installs the packed plugin and a test-only model route into a throwaway `DSH_HOME` with `dsh plugin add`, boots the `web` profile, and drives Chromium through the block, its tooltip, **Retry now**, **Stop**, and cancellation by a new message. It then closes the browser, restarts the server, and checks in the stored log that the waiting retry ran without the session being opened. Point it at a dsh build:
+The browser test (`e2e/`) installs the packed plugin and a test-only model route into a throwaway `DSH_HOME` with `dsh plugin add`, boots the `web` profile, and drives Chromium through the block, its tooltip, **Retry now**, **Stop**, and cancellation by a new message. It then closes the browser, restarts the server, and checks in the stored log that the waiting retry ran without the session being opened.
 
 ```sh
-# a built dsh checkout
+# @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
+pnpm --filter dsh-session-retry run test:e2e
+# another npm version, a built dsh checkout, or any other launcher
+DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-session-retry run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-session-retry run test:e2e
-# or any launcher
 DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-session-retry run test:e2e
 ```
 
-Without either variable the browser test is skipped. `DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME` for inspection. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
+`DSH_E2E_KEEP_HOME=1` keeps the throwaway `DSH_HOME` for inspection. It needs Playwright's Chromium (`pnpm exec playwright install chromium`).
 
 ## License
 

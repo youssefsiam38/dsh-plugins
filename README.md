@@ -11,6 +11,21 @@ Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 | [`dsh-command-menu`](packages/dsh-command-menu/README.md) | Cmd/Ctrl+K command menu: search sessions by title and message text, run slash commands, open settings pages and workspaces, switch the session's model, and run app actions, with recents, nested pages, and `>` `@` `#` scopes. |
 | [`dsh-model-compare`](packages/dsh-model-compare/README.md) | Send one prompt to 2–4 models side by side from the current session, with time to first token, total time, tokens, and cost per model, then continue with the answer you pick. Comparison lanes run without tools by default. |
 
+## Install
+
+Each plugin is an npm package that installs into a dsh profile. For the Web UI:
+
+```sh
+dsh plugin --profile web add dsh-session-retry
+dsh plugin --profile web add dsh-user-shell
+dsh plugin --profile web add dsh-hunk-review
+dsh plugin --profile web add dsh-model-switcher
+dsh plugin --profile web add dsh-command-menu
+dsh plugin --profile web add dsh-model-compare
+```
+
+Remove one with `dsh plugin --profile web remove <name>`, or manage them on the Plugins page. The plugins need dsh `>=0.1.7-rc.1` and Node.js `^22.19 || >=24`; each README lists its own compatibility notes.
+
 ## Working in this repository
 
 ```sh
@@ -19,8 +34,10 @@ pnpm run check      # typecheck, tests, and build for every package
 pnpm run pack       # tarballs in .artifacts/
 ```
 
-Requires Node.js `^22.19 || >=24` and pnpm 10.
+Requires Node.js `^22.19 || >=24` and pnpm 10. Each package also has a browser test against a real dsh Web server (`pnpm --filter <name> run test:e2e`), which runs `@deepseek-ai/dsh` from npm by default; see the package README.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for changes and [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
 ## License
 
-MIT
+[MIT](LICENSE)

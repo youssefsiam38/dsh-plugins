@@ -179,11 +179,15 @@ The browser test (`e2e/`) installs the packed plugin and demo model routes into 
 - removal, after which the stock control is back.
 
 ```sh
-DSH_E2E_BIN="npx -y @deepseek-ai/dsh@0.1.7-rc.2" pnpm --filter dsh-model-switcher run test:e2e
+# @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
+pnpm --filter dsh-model-switcher run test:e2e
+# another npm version, a built dsh checkout, or any other launcher
+DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-model-switcher run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-model-switcher run test:e2e
+DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-model-switcher run test:e2e
 ```
 
-Without either variable the browser test is skipped. `DSH_E2E_MEDIA=<dir>` saves screenshots and a video. It needs Playwright's Chromium (`pnpm exec playwright install chromium`). Design notes and the research behind the decisions are in [docs/design.md](docs/design.md).
+`DSH_E2E_MEDIA=<dir>` saves screenshots and a video. It needs Playwright's Chromium (`pnpm exec playwright install chromium`). Design notes and the research behind the decisions are in [docs/design.md](docs/design.md).
 
 ## License
 

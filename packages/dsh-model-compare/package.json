@@ -44,6 +44,10 @@
     "url": "git+https://github.com/youssefsiam38/dsh-plugins.git",
     "directory": "packages/dsh-model-compare"
   },
+  "homepage": "https://github.com/youssefsiam38/dsh-plugins/tree/main/packages/dsh-model-compare#readme",
+  "bugs": {
+    "url": "https://github.com/youssefsiam38/dsh-plugins/issues"
+  },
   "engines": {
     "node": "^22.19 || >=24",
     "dsh": ">=0.1.7-rc.1"

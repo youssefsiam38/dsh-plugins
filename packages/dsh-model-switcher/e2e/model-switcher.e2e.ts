@@ -5,15 +5,17 @@
  * picker: search, keyboard selection, the provider stage, effort, favorites,
  * the narrow-screen sheet, and removal (the stock control comes back).
  *
- * Choose the dsh to test with one of:
+ * Choose the dsh to test with:
+ * - nothing: `npx -y @deepseek-ai/dsh@<version>` from npm, where the version is
+ *   `DSH_E2E_VERSION` or the pinned `@deepseek-ai/dsh-*` dev dependency;
  * - `DSH_E2E_CHECKOUT=/path/to/deepseek-harness` runs `pnpm -s dsh` in a built checkout;
  * - `DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next"` runs any other launcher.
- * Without either the suite is skipped. `DSH_E2E_MEDIA=<dir>` saves
- * screenshots and a recording of the run there.
+ * `DSH_E2E_MEDIA=<dir>` saves screenshots and a recording of the run there.
  */
 
 import { spawn, spawnSync } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -27,7 +29,20 @@ const ARTIFACTS = join(PACKAGE_DIR, '..', '..', '.artifacts')
 const FIXTURE = join(PACKAGE_DIR, 'e2e', 'model-fixture')
 const MEDIA = process.env['DSH_E2E_MEDIA']
 
-function launcher(): { command: string; args: string[]; cwd?: string } | undefined {
+/**
+ * dsh version the default launcher runs: `DSH_E2E_VERSION`, else the pinned
+ * `@deepseek-ai/dsh-*` dev dependency of this package.
+ */
+function dshVersion(): string {
+  const fromEnv = process.env['DSH_E2E_VERSION']
+  if (fromEnv !== undefined && fromEnv !== '') return fromEnv
+  const manifest = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8')) as { devDependencies?: Record<string, string> }
+  const pinned = Object.entries(manifest.devDependencies ?? {}).find(([name]) => name.startsWith('@deepseek-ai/dsh-'))?.[1]
+  if (pinned === undefined) throw new Error('no pinned @deepseek-ai/dsh-* dev dependency; set DSH_E2E_VERSION')
+  return pinned
+}
+
+function launcher(): { command: string; args: string[]; cwd?: string } {
   const checkout = process.env['DSH_E2E_CHECKOUT']
   if (checkout !== undefined && checkout !== '') return { command: 'pnpm', args: ['-s', 'dsh'], cwd: checkout }
   const bin = process.env['DSH_E2E_BIN']
@@ -35,10 +50,24 @@ function launcher(): { command: string; args: string[]; cwd?: string } | undefin
     const [command, ...args] = bin.split(/\s+/)
     return { command: command!, args }
   }
-  return undefined
+  return { command: 'npx', args: ['-y', `@deepseek-ai/dsh@${dshVersion()}`] }
 }
 
 const dsh = launcher()
+
+/**
+ * Acknowledge stock dsh's first-run welcome notice in the profile's user patch
+ * layer, so its modal does not cover the page.
+ */
+async function acknowledgeWelcome(home: string): Promise<void> {
+  await writeFile(join(home, 'profiles', 'web', 'cordis.patch.yml'), [
+    '- id: ui-settings-general',
+    '  name: "@deepseek-ai/dsh-client-ui-settings-general"',
+    '  config:',
+    '    welcomeNoticeVersion: 2026-08-13.1',
+    '',
+  ].join('\n'))
+}
 
 async function packedTarball(): Promise<string> {
   const name = (await readdir(ARTIFACTS)).filter(file => /^dsh-model-switcher-.*\.tgz$/.test(file)).sort().at(-1)
@@ -130,7 +159,7 @@ async function shot(page: Page, name: string): Promise<void> {
   if (MEDIA !== undefined) await page.screenshot({ path: join(MEDIA, `${name}.png`) })
 }
 
-describe.skipIf(dsh === undefined)('model switcher in the dsh Web UI', () => {
+describe('model switcher in the dsh Web UI', () => {
   let home: string
   let overlay: string
   let server: Served | undefined
@@ -144,6 +173,7 @@ describe.skipIf(dsh === undefined)('model switcher in the dsh Web UI', () => {
     await writeFile(overlay, ['- id: agent-default-model', '  config:', '    provider: demo-local', '    model: echo', ''].join('\n'))
     runDsh(home, ['plugin', '--profile', 'web', 'add', await packedTarball()])
     runDsh(home, ['plugin', '--profile', 'web', 'add', FIXTURE])
+    await acknowledgeWelcome(home)
     server = await serve(home, overlay)
     browser = await chromium.launch()
     if (MEDIA !== undefined) await mkdir(MEDIA, { recursive: true })

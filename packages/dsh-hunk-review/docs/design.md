@@ -42,7 +42,7 @@ The reverse patch is written here (about 40 lines in `reverseHunks`) instead of 
 | Scope | One review per turn | That is the unit the recorder keeps. A session-wide review would need a baseline the recorder does not keep. |
 | Status | Computed from the file every time | No stored revert state can go stale: a hunk is reverted when its turn-start lines are in the file, pending when its turn-end lines are, and a conflict otherwise. |
 | Matching | Exact lines, nearest occurrence to the expected line | A revert must never write over lines the user changed. The expected line moves by the size difference of reverted earlier hunks of the same file. |
-| Write | `ctx.fs.writeText` with `replaceIfVersion` / `createIfAbsent` | The file service is the seam every execution world implements (local, sandboxed, machine router). The version from `stat` before the read guards the whole read-compute-write. |
+| Write | `ctx.fs.writeText` with `replaceIfVersion` / `createIfAbsent` | The file service is the seam every execution world implements (local, sandboxed, remote). The version from `stat` before the read guards the whole read-compute-write. |
 | Bulk actions | Act on pending hunks only | A kept hunk was decided; Revert all should not undo that. Reverting a kept hunk one at a time stays possible. |
 | While the agent runs | Refuse reverts (configurable) | The agent may be writing the same file; the recorder also attributes edits during a turn to that turn. |
 | Keep | In-memory per `sessionId:seq` | Keeping changes nothing on disk and nothing the model sees; the recorded changes are in memory for the same lifetime. |

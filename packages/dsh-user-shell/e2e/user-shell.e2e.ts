@@ -2,18 +2,20 @@
  * Browser test against a real dsh Web server. It installs the packed plugin
  * and a test-only model route into a throwaway `DSH_HOME` with
  * `dsh plugin add`, boots the `web` profile with a fake `sudo` first on the
- * commands' PATH, and drives Chromium through `!`, `!!`, cancel, and the
- * sudo password prompt.
+ * commands' PATH, and drives Chromium through `!` and `!!` (or `/sh` and
+ * `/shq` on builds without line-prefix input-trigger sources), cancel, and
+ * the sudo password prompt.
  *
- * Choose the dsh to test with one of:
- * - `DSH_E2E_CHECKOUT=/path/to/deepseek-harness` runs `pnpm -s dsh` in a
- *   built checkout (a fork build with line-prefix input-trigger sources);
+ * Choose the dsh to test with:
+ * - nothing: `npx -y @deepseek-ai/dsh@<version>` from npm, where the version is
+ *   `DSH_E2E_VERSION` or the pinned `@deepseek-ai/dsh-*` dev dependency;
+ * - `DSH_E2E_CHECKOUT=/path/to/deepseek-harness` runs `pnpm -s dsh` in a built checkout;
  * - `DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next"` runs any other launcher.
- * Without either the suite is skipped.
  */
 
 import { spawn, spawnSync } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -29,7 +31,20 @@ const ARTIFACTS = join(PACKAGE_DIR, '..', '..', '.artifacts')
 const FIXTURE = join(PACKAGE_DIR, 'e2e', 'model-fixture')
 const SCREENSHOT = process.env['DSH_E2E_SCREENSHOT']
 
-function launcher(): { command: string; args: string[]; cwd?: string } | undefined {
+/**
+ * dsh version the default launcher runs: `DSH_E2E_VERSION`, else the pinned
+ * `@deepseek-ai/dsh-*` dev dependency of this package.
+ */
+function dshVersion(): string {
+  const fromEnv = process.env['DSH_E2E_VERSION']
+  if (fromEnv !== undefined && fromEnv !== '') return fromEnv
+  const manifest = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8')) as { devDependencies?: Record<string, string> }
+  const pinned = Object.entries(manifest.devDependencies ?? {}).find(([name]) => name.startsWith('@deepseek-ai/dsh-'))?.[1]
+  if (pinned === undefined) throw new Error('no pinned @deepseek-ai/dsh-* dev dependency; set DSH_E2E_VERSION')
+  return pinned
+}
+
+function launcher(): { command: string; args: string[]; cwd?: string } {
   const checkout = process.env['DSH_E2E_CHECKOUT']
   if (checkout !== undefined && checkout !== '') return { command: 'pnpm', args: ['-s', 'dsh'], cwd: checkout }
   const bin = process.env['DSH_E2E_BIN']
@@ -37,10 +52,24 @@ function launcher(): { command: string; args: string[]; cwd?: string } | undefin
     const [command, ...args] = bin.split(/\s+/)
     return { command: command!, args }
   }
-  return undefined
+  return { command: 'npx', args: ['-y', `@deepseek-ai/dsh@${dshVersion()}`] }
 }
 
 const dsh = launcher()
+
+/**
+ * Acknowledge stock dsh's first-run welcome notice in the profile's user patch
+ * layer, so its modal does not cover the page.
+ */
+async function acknowledgeWelcome(home: string): Promise<void> {
+  await writeFile(join(home, 'profiles', 'web', 'cordis.patch.yml'), [
+    '- id: ui-settings-general',
+    '  name: "@deepseek-ai/dsh-client-ui-settings-general"',
+    '  config:',
+    '    welcomeNoticeVersion: 2026-08-13.1',
+    '',
+  ].join('\n'))
+}
 
 async function packedTarball(): Promise<string> {
   const name = (await readdir(ARTIFACTS)).filter(file => /^dsh-user-shell-.*\.tgz$/.test(file)).sort().at(-1)
@@ -147,9 +176,31 @@ async function type(page: Page, text: string): Promise<void> {
   await input.fill(text)
 }
 
-async function send(page: Page, text: string): Promise<void> {
+/**
+ * Whether the composer claims `!` lines. Builds without line-prefix
+ * input-trigger sources (such as dsh 0.1.7-rc.2 from npm) show the
+ * `unsupported` chip, and the test then drives the `/sh` and `/shq` commands.
+ */
+async function detectLinePrefix(page: Page): Promise<boolean> {
+  await type(page, '!probe')
+  const chip = page.locator('[data-user-shell-mode]')
+  await chip.waitFor({ timeout: 10_000 })
+  const mode = await chip.getAttribute('data-user-shell-mode')
+  await type(page, '')
+  return mode !== 'unsupported'
+}
+
+/**
+ * Type and submit without waiting for the composer to clear: the stock
+ * composer keeps a `/sh` line until its command finishes.
+ */
+async function submit(page: Page, text: string): Promise<void> {
   await type(page, text)
   await page.locator('[data-composer-input][contenteditable="true"]').press('Enter')
+}
+
+async function send(page: Page, text: string): Promise<void> {
+  await submit(page, text)
   await page.waitForFunction(
     () => document.querySelector('[data-composer-input]')?.textContent === '',
     undefined,
@@ -157,12 +208,16 @@ async function send(page: Page, text: string): Promise<void> {
   )
 }
 
-describe.skipIf(dsh === undefined)('user shell in the dsh Web UI', () => {
+describe('user shell in the dsh Web UI', () => {
   let home: string
   let server: Served | undefined
   let browser: Browser
   let page: Page
   let sudo: { dir: string; dispose: () => Promise<void> }
+  let linePrefix = false
+  /** Composer text that runs `command`: `!` / `!!` lines, or `/sh` / `/shq`. */
+  const line = (command: string, quiet = false): string =>
+    linePrefix ? `${quiet ? '!!' : '!'}${command}` : `${quiet ? '/shq' : '/sh'} ${command}`
 
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), 'dsh-user-shell-e2e-'))
@@ -183,10 +238,12 @@ describe.skipIf(dsh === undefined)('user shell in the dsh Web UI', () => {
     ].join('\n'))
     runDsh(home, ['plugin', '--profile', 'web', 'add', await packedTarball()])
     runDsh(home, ['plugin', '--profile', 'web', 'add', FIXTURE])
+    await acknowledgeWelcome(home)
     server = await serve(home, overlay)
     browser = await chromium.launch()
     page = await browser.newPage({ locale: 'en-US', timezoneId: 'UTC', viewport: { width: 1280, height: 900 } })
     await page.goto(server.url, { waitUntil: 'load' })
+    linePrefix = await detectLinePrefix(page)
   }, 600_000)
 
   afterAll(async () => {
@@ -203,8 +260,8 @@ describe.skipIf(dsh === undefined)('user shell in the dsh Web UI', () => {
       await writeFile(join(tmpdir(), 'dsh-user-shell-e2e-server.log'), server?.output() ?? '')
     })
     await type(page, '!echo hi')
-    await expect.poll(() => page.locator('[data-user-shell-mode="context"]').count(), { timeout: 10_000 }).toBe(1)
-    await send(page, '!echo hi')
+    await expect.poll(() => page.locator(`[data-user-shell-mode="${linePrefix ? 'context' : 'unsupported'}"]`).count(), { timeout: 10_000 }).toBe(1)
+    await send(page, line('echo hi'))
     const block = page.locator('[data-user-shell-block]').first()
     await block.locator('[data-user-shell-output]').getByText('hi').waitFor({ timeout: 60_000 })
     await block.getByText(/Exit 0 · \d+\.\d{2} s/).waitFor({ timeout: 30_000 })
@@ -221,8 +278,8 @@ describe.skipIf(dsh === undefined)('user shell in the dsh Web UI', () => {
   it('`!!` runs are shown but never reach the model', async () => {
     onTestFailed(async () => { await page.screenshot({ path: join(tmpdir(), 'dsh-user-shell-e2e-quiet.png') }) })
     await type(page, '!!echo quiet-7')
-    await expect.poll(() => page.locator('[data-user-shell-mode="quiet"]').count(), { timeout: 10_000 }).toBe(1)
-    await send(page, '!!echo quiet-7')
+    await expect.poll(() => page.locator(`[data-user-shell-mode="${linePrefix ? 'quiet' : 'unsupported'}"]`).count(), { timeout: 10_000 }).toBe(1)
+    await send(page, line('echo quiet-7', true))
     const block = page.locator('[data-user-shell-block][data-mode="quiet"]').last()
     await block.locator('[data-user-shell-output]').getByText('quiet-7').waitFor({ timeout: 60_000 })
     await block.getByText('Not added to the agent context').waitFor()
@@ -235,7 +292,7 @@ describe.skipIf(dsh === undefined)('user shell in the dsh Web UI', () => {
 
   it('Cancel stops a running command', async () => {
     onTestFailed(async () => { await page.screenshot({ path: join(tmpdir(), 'dsh-user-shell-e2e-cancel.png') }) })
-    await send(page, '!echo waiting; sleep 60')
+    await submit(page, line('echo waiting; sleep 60'))
     const block = page.locator('[data-user-shell-block]').last()
     await block.locator('[data-user-shell-output]').getByText('waiting').waitFor({ timeout: 60_000 })
     await block.getByRole('button', { name: 'Cancel' }).click()
@@ -244,7 +301,7 @@ describe.skipIf(dsh === undefined)('user shell in the dsh Web UI', () => {
 
   it('sudo asks for the password in the page, and the password is stored nowhere', async () => {
     onTestFailed(async () => { await page.screenshot({ path: join(tmpdir(), 'dsh-user-shell-e2e-sudo.png') }) })
-    await send(page, '!sudo echo root-ok')
+    await submit(page, line('sudo echo root-ok'))
     const block = page.locator('[data-user-shell-block]').last()
     const field = block.getByLabel('Password')
     await field.waitFor({ timeout: 60_000 })
