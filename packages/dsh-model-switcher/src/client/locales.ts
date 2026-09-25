@@ -52,6 +52,13 @@ export const en = {
   'hint.switch': 'Provider / model',
   'hint.favorite': 'Favorite',
   'hint.close': 'Close',
+  'hint.toggle': 'Check',
+  'pick.titleOne': 'Choose a model',
+  'pick.titleMany': 'Choose models',
+  'pick.count': '{count} selected',
+  'pick.countOne': '1 selected',
+  'pick.countOf': '{count} of {max} selected',
+  'pick.done': 'Done',
 } satisfies Record<string, string>
 
 /** Key union of the namespace. */
@@ -109,4 +116,11 @@ export const zh = {
   'hint.switch': '服务商 / 模型',
   'hint.favorite': '收藏',
   'hint.close': '关闭',
+  'hint.toggle': '勾选',
+  'pick.titleOne': '选择模型',
+  'pick.titleMany': '选择多个模型',
+  'pick.count': '已选 {count} 个',
+  'pick.countOne': '已选 1 个',
+  'pick.countOf': '已选 {count} / {max} 个',
+  'pick.done': '完成',
 } satisfies Record<ModelSwitcherKey, string>

@@ -1,6 +1,6 @@
 {
   "name": "dsh-model-switcher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Richer model picker for the DeepSeek Harness Web composer: a searchable provider select (with logos, model counts, and key status) above a keyboard-first, fuzzy-searchable model list grouped by provider, with favorites, recents, context-window/vision/reasoning badges, and the reasoning-effort control.",
   "license": "MIT",
   "type": "module",
@@ -14,6 +14,9 @@
     "./client": {
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
+    },
+    "./service": {
+      "types": "./lib/types/service.d.ts"
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"

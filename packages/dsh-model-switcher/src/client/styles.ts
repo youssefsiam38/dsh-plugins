@@ -172,6 +172,19 @@ export const MODEL_SWITCHER_CSS = `
 .${C.effortOption}:hover:not(:disabled), .${C.effortOption}:focus-visible { background: var(--dsw-alias-interactive-bg-hover); }
 .${C.effortOption}[aria-pressed="true"] { background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1); }
 .${C.effortOption}:disabled { cursor: default; opacity: 0.6; }
+.${C.panel}[data-centered] { left: 50%; top: max(12px, 12vh); transform: translateX(-50%); }
+.${C.pickBar} {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 0 0 auto;
+  padding: 6px 4px 2px; border-top: 0.5px solid var(--dsw-alias-border-l1);
+}
+.${C.pickCount} { color: var(--dsw-alias-label-secondary); font-size: 12px; }
+.${C.done} {
+  height: 28px; padding: 0 14px; border: none; border-radius: 14px; corner-shape: round;
+  background: var(--dsw-alias-label-primary); color: var(--dsw-alias-bg-layer-1);
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.${C.done}:focus-visible { box-shadow: 0 0 0 2px var(--dsw-alias-border-l3); }
+.${C.done}:disabled { cursor: default; opacity: 0.5; }
 .${C.hints} {
   display: flex; flex-wrap: nowrap; gap: 10px; flex: 0 0 auto; padding: 4px 4px 0; overflow: hidden; white-space: nowrap;
   color: var(--dsw-alias-label-tertiary); font-size: 11px; line-height: 16px;

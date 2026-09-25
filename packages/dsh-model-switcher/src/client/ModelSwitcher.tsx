@@ -222,8 +222,10 @@ export function ModelSwitcher(props: ModelSwitcherProps) {
         <SwitcherPanel
           id={`${id}-panel`}
           panelRef={panelRef}
-          triggerRef={triggerRef}
+          anchorRef={triggerRef}
+          placement={COMPOSER_PLACEMENT}
           state={state}
+          selectedKeys={current === null ? NO_KEYS : new Set([modelKey(current.provider, current.model)])}
           load={load}
           prefs={prefs}
           insights={insights}
@@ -271,12 +273,43 @@ export function ModelSwitcher(props: ModelSwitcherProps) {
   )
 }
 
+/** Where an anchored surface hangs from its anchor. */
+export interface PanelPlacement {
+  readonly side: 'top' | 'bottom'
+  readonly align: 'start' | 'end'
+}
+
+/** The composer popover opens above the trigger, right-aligned. */
+const COMPOSER_PLACEMENT: PanelPlacement = { side: 'top', align: 'end' }
+
+const NO_KEYS: ReadonlySet<string> = new Set()
+
+/** Picker-mode state of the surface (the `modelSwitcher.pick` service). */
+export interface PanelPick {
+  /** Whether rows toggle a check and Done confirms. */
+  readonly multiple: boolean
+  /** Checked models. */
+  readonly count: number
+  /** Most checked models, if limited. */
+  readonly max: number | undefined
+  /** Confirm a multiple pick. */
+  readonly onDone: () => void
+}
+
 /** Props of the open surface. */
-interface PanelProps {
+export interface PanelProps {
   readonly id: string
   readonly panelRef: MutableRefObject<HTMLDivElement | null>
-  readonly triggerRef: MutableRefObject<HTMLButtonElement | null>
+  /** Element the surface is placed from; an empty ref centers it (phones use the sheet either way). */
+  readonly anchorRef: MutableRefObject<HTMLElement | null>
+  readonly placement: PanelPlacement
   readonly state: DirectoryView
+  /** Rows shown checked: the session's model in the composer, the checked models in picker mode. */
+  readonly selectedKeys: ReadonlySet<string>
+  /** Dialog label and sheet title; defaults to the composer's. */
+  readonly title?: string
+  /** Picker mode; absent for the composer control. */
+  readonly pick?: PanelPick
   readonly load: () => void
   readonly prefs: PrefsStore
   readonly insights: ProviderInsights
@@ -292,14 +325,23 @@ interface PanelProps {
 /** Sentinel id of the "All providers" option. */
 const ALL = '\u0000all'
 
-function SwitcherPanel(props: PanelProps) {
-  const { id, panelRef, triggerRef, state, load, prefs: prefsStore, insights: insightStore, settings, t } = props
+/**
+ * The open picker surface: provider select, model search, grouped list, and
+ * (composer only) the effort row or (picker mode, multiple) the Done bar.
+ * @param props - data, placement, mode, and callbacks.
+ * @returns the surface, portaled to `document.body`.
+ */
+export function SwitcherPanel(props: PanelProps) {
+  const { id, panelRef, anchorRef, placement, state, load, prefs: prefsStore, insights: insightStore, settings, t, pick } = props
   const prefs = useSyncExternalStore(prefsStore.subscribe, prefsStore.getSnapshot)
   const insight = useSyncExternalStore(insightStore.subscribe, insightStore.getSnapshot)
   const narrow = useNarrow()
+  const centered = !narrow && anchorRef.current === null
   const position = useAnchoredPosition({
-    open: !narrow, anchorRef: triggerRef, panelRef, side: 'top', align: 'end', gap: 8, margin: 12,
+    open: !narrow && !centered, anchorRef, panelRef, side: placement.side, align: placement.align, gap: 8, margin: 12,
   })
+  const title = props.title ?? t('dialog.label')
+  const full = pick !== undefined && pick.multiple && pick.max !== undefined && pick.count >= pick.max
 
   const [provider, setProvider] = useState<string | undefined>(undefined)
   const [providerQuery, setProviderQuery] = useState('')
@@ -318,6 +360,7 @@ function SwitcherPanel(props: PanelProps) {
   const busy = state.status === 'selecting'
   const current = state.current
   const currentKey = current === null ? undefined : modelKey(current.provider, current.model)
+  const doneRef = useRef<HTMLButtonElement | null>(null)
 
   // Enrichment follows the providers the directory lists.
   const providerIds = useMemo(() => state.groups.map(group => group.id), [state.groups])
@@ -364,7 +407,7 @@ function SwitcherPanel(props: PanelProps) {
   }, [])
 
   const effortChoices = useMemo(() => {
-    const reasoning = current === null
+    const reasoning = current === null || pick !== undefined
       ? undefined
       : state.groups.find(group => group.id === current.provider)?.models.find(model => model.id === current.model)?.reasoning
     if (reasoning === undefined) return []
@@ -372,7 +415,7 @@ function SwitcherPanel(props: PanelProps) {
       ...reasoning.defaultEffort === undefined ? [{ key: 'provider-default', effort: undefined as string | undefined, label: t('effort.providerDefault') }] : [],
       ...reasoning.efforts.map(level => ({ key: `effort:${level.id}`, effort: level.id as string | undefined, label: level.name })),
     ]
-  }, [current, state.groups, t])
+  }, [current, pick, state.groups, t])
 
   const focusStops = (): HTMLElement[] => {
     const stops: (HTMLElement | null | undefined)[] = [
@@ -381,6 +424,7 @@ function SwitcherPanel(props: PanelProps) {
       modelInputRef.current,
       effortRefs.current.find((button, index) => button !== null && effortChoices[index]?.effort === props.effectiveEffort)
         ?? effortRefs.current.find(button => button !== null),
+      doneRef.current,
     ]
     return stops.filter((stop): stop is HTMLElement => stop !== null && stop !== undefined && !(stop instanceof HTMLButtonElement && stop.disabled))
   }
@@ -408,7 +452,7 @@ function SwitcherPanel(props: PanelProps) {
   }
 
   const choose = (entry: ModelEntry): void => {
-    if (busy) return
+    if (busy || (full && !props.selectedKeys.has(entry.key))) return
     lastLoad.current = false
     props.onChoose(entry)
   }
@@ -469,7 +513,8 @@ function SwitcherPanel(props: PanelProps) {
     if (event.key === 'Enter') {
       event.preventDefault()
       event.stopPropagation()
-      if (activeOption !== undefined) choose(activeOption.entry)
+      if (pick?.multiple === true && (event.metaKey || event.ctrlKey)) pick.onDone()
+      else if (activeOption !== undefined) choose(activeOption.entry)
       return
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
@@ -517,10 +562,12 @@ function SwitcherPanel(props: PanelProps) {
       className={CLASS.panel}
       role="dialog"
       aria-modal={narrow ? 'true' : undefined}
-      aria-label={t('dialog.label')}
+      aria-label={title}
       data-sheet={narrow ? '' : undefined}
+      data-centered={centered ? '' : undefined}
       data-model-switcher-panel=""
-      style={narrow ? undefined : position ?? { opacity: 0, pointerEvents: 'none', left: 0, top: 0 }}
+      data-model-switcher-pick={pick === undefined ? undefined : pick.multiple ? 'multiple' : 'single'}
+      style={narrow || centered ? undefined : position ?? { opacity: 0, pointerEvents: 'none', left: 0, top: 0 }}
       onKeyDown={onPanelKeyDown}
       onMouseDown={(event) => {
         // Keep focus in the active search while the pointer works the lists.
@@ -529,7 +576,7 @@ function SwitcherPanel(props: PanelProps) {
     >
       {narrow && (
         <div className={CLASS.sheetHeader}>
-          <span className={CLASS.sheetTitle}>{t('dialog.label')}</span>
+          <span className={CLASS.sheetTitle}>{title}</span>
           <button ref={closeRef} type="button" className={CLASS.close} aria-label={t('dialog.close')} onClick={() => { props.onClose(true) }}>
             <IconCloseOutlineRegular />
           </button>
@@ -647,6 +694,7 @@ function SwitcherPanel(props: PanelProps) {
         id={modelListId}
         role="listbox"
         aria-label={t('model.label')}
+        aria-multiselectable={pick?.multiple === true ? 'true' : undefined}
         aria-busy={state.status === 'loading' || busy}
         className={`${CLASS.list} scrollable`}
       >
@@ -666,9 +714,9 @@ function SwitcherPanel(props: PanelProps) {
                   entry={entry}
                   section={section}
                   active={activeOption?.id === `${id}-${section.id}-${index}`}
-                  selected={entry.key === currentKey}
+                  selected={props.selectedKeys.has(entry.key)}
                   favorite={favorites.has(entry.key)}
-                  disabled={busy}
+                  disabled={busy || (full && !props.selectedKeys.has(entry.key))}
                   showProvider={provider === undefined && section.kind !== 'provider'}
                   status={providerById.get(entry.provider)?.status ?? 'unknown'}
                   iconUrl={settings.providerIcons[entry.provider]}
@@ -728,10 +776,32 @@ function SwitcherPanel(props: PanelProps) {
         </div>
       )}
 
+      {pick?.multiple === true && (
+        <div className={CLASS.pickBar}>
+          <span className={CLASS.pickCount} role="status" aria-live="polite" data-model-switcher-count={pick.count}>
+            {pick.max === undefined
+              ? t(pick.count === 1 ? 'pick.countOne' : 'pick.count', { count: pick.count })
+              : t('pick.countOf', { count: pick.count, max: pick.max })}
+          </span>
+          <button
+            ref={doneRef}
+            type="button"
+            className={CLASS.done}
+            tabIndex={-1}
+            disabled={pick.count === 0}
+            data-model-switcher-done=""
+            onClick={pick.onDone}
+          >
+            {t('pick.done')}
+          </button>
+        </div>
+      )}
+
       {!narrow && (
         <div className={CLASS.hints} aria-hidden="true">
           <Hint keys={['↑', '↓']} label={t('hint.navigate')} />
-          <Hint keys={['↵']} label={t('hint.select')} />
+          <Hint keys={['↵']} label={t(pick?.multiple === true ? 'hint.toggle' : 'hint.select')} />
+          {pick?.multiple === true && <Hint keys={[isMac() ? '⌘' : 'Ctrl', '↵']} label={t('pick.done')} />}
           <Hint keys={['Tab']} label={t('hint.switch')} />
           <Hint keys={[isMac() ? '⌘' : 'Ctrl', 'S']} label={t('hint.favorite')} />
           <Hint keys={['Esc']} label={t('hint.close')} />

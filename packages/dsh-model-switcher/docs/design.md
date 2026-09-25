@@ -12,6 +12,10 @@ Maintainer notes. User-facing behavior is in the [README](../README.md).
 | `src/client/ModelSwitcher.tsx` | Trigger, popover or sheet, both comboboxes, the grouped listbox, the effort row, and the focus cycle. |
 | `src/client/search.ts` | Pure data: entries, provider options, match-sorter ranking, and sections. |
 | `src/client/insights.ts` | Best-effort Remote reads for key status and model metadata, cached per Host generation. |
+| `src/service.ts` | Types of the `modelSwitcher` service (`dsh-model-switcher/service`, a types-only export with no runtime code). |
+| `src/client/pick-service.ts` | The `modelSwitcher` Cordis `Service`: `pick()` renders `Picker.tsx` in its own React root under `document.body`, one pick at a time. |
+| `src/client/Picker.tsx` | Picker mode of the surface: the same `SwitcherPanel` without effort or session writes, excluded models filtered out, checks and Done for a multiple pick. |
+| `src/client/catalog.ts` | The Host catalog for picker mode, read with `session.modelCatalog` (picker mode has no session directory) and marked stale by the same Host events as the enrichment. |
 | `src/client/prefs.ts` | Favorites and recents in `localStorage`, synced across tabs. |
 | `src/client/icons.tsx`, `marks.generated.ts` | Provider logos. `scripts/marks.mjs` copies the needed paths out of the pinned `simple-icons`, so the 5 MB package stays out of the bundle, the source map, and the tests. |
 
@@ -20,6 +24,7 @@ Maintainer notes. User-facing behavior is in the [README](../README.md).
 - **`conversation.input.model`** (declared by `ui-conversation`, kind `single`). Since dsh 0.1.7-rc.1, `SlotCore.register` lets entries shadow each other by `priority`: the lowest live entry renders, and the stock `ModelSelect` sits at 0. The picker registers at a negative priority. Unloading the plugin removes the entry, and the stock control renders again. There is no fork patch and no DOM surgery.
 - **`ctx.modelDirectories`** (the `ui-model-selection` service). This is the same per-session `ModelDirectory` that the stock seat and `/model` use, so selection semantics, generation guards, composer blocking, and "session in use" handling stay the stock behavior. `directoryFor` runs on the caller's context and reads `remote.session`, so the registering scope injects `remote` and `remote.session` exactly as the stock plugin does. Without them the call throws "cannot get property without inject". The browser test caught this.
 - **Remote namespaces** `llm`, `settings`, and `credentials`, all read-only, each optional (`ctx.get('remote.<ns>')`), and all validated as untrusted wire data.
+- **Client service `modelSwitcher`**, registered like the stock `modelDirectories` (a `Service` subclass mounted with `ctx.plugin`). Consumers read it with `ctx.get('modelSwitcher')` at call time and check for `pick`, so the dependency stays optional; `dsh-model-compare` does this.
 - **`webserver/index-inject`** to hand the validated config to the page. This is the pattern `ui-settings-models` uses.
 
 The Settings pages have no model-picker seat. `ui-settings-models` is a provider editor, and its extension seats (`settings.models.provider-card`, `settings.models.footer`) add content but cannot replace controls. The model choice in `ui-settings-subagent` is a checkbox list inside the whole `plugins.item` card with id `subagent`. Replacing that card would mean re-implementing its limits and permission controls. The plugin therefore changes only the composer.

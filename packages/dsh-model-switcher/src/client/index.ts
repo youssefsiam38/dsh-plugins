@@ -7,6 +7,9 @@
  * picker needs `@deepseek-ai/dsh-client-ui-model-selection` and stays inert
  * without it. Provider key status and model metadata come from optional
  * Remote reads (see `insights.ts`).
+ *
+ * It also provides the `modelSwitcher` client service (`pick-service.ts`):
+ * the same surface in picker mode over the Host catalog, for other plugins.
  * @module dsh-model-switcher/client
  */
 
@@ -28,17 +31,27 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { SETTINGS_GLOBAL, parseSettings } from '../settings.ts'
 import type { SwitcherSettings } from '../settings.ts'
+import { PickerCatalog } from './catalog.ts'
 import { ProviderInsights } from './insights.ts'
 import type { InsightRemotes, WireResult } from './insights.ts'
 import { en, zh } from './locales.ts'
 import type { ModelSwitcherKey } from './locales.ts'
 import { ModelSwitcher } from './ModelSwitcher.tsx'
 import type { SwitcherFace, Translate } from './ModelSwitcher.tsx'
+import { ModelSwitcherPicker } from './pick-service.ts'
 import { PrefsStore } from './prefs.ts'
 import { MODEL_SWITCHER_CSS } from './styles.ts'
 
 export { ModelSwitcher, SHEET_MEDIA } from './ModelSwitcher.tsx'
 export type { DirectoryStore, DirectoryView, ModelSwitcherProps, SelectOutcome, SwitcherFace, Translate } from './ModelSwitcher.tsx'
+export type { PanelPick, PanelPlacement, PanelProps } from './ModelSwitcher.tsx'
+export { PickerCatalog, parseCatalog } from './catalog.ts'
+export type { CatalogRead } from './catalog.ts'
+export { ModelPicker, withoutExcluded } from './Picker.tsx'
+export type { ModelPickerProps, PickRequest } from './Picker.tsx'
+export { ModelSwitcherPicker, pickRequest } from './pick-service.ts'
+export type { PickerDeps } from './pick-service.ts'
+export type { ModelRef, ModelSwitcherService, PickOptions } from '../service.ts'
 export { ProviderInsights, apiKeyRefOf, collectMeta, parseRoutes } from './insights.ts'
 export type { InsightOptions, InsightRemotes, InsightState, WireResult } from './insights.ts'
 export { PREFS_KEY, PrefsStore, parsePrefs } from './prefs.ts'
@@ -144,18 +157,29 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => prefs.start(), 'model-switcher: favorites and recents')
 
   const insights = new ProviderInsights(() => insightRemotes(ctx), settings)
-  ctx.effect(() => ctx.on('connection/reset', () => { insights.invalidate() }), 'model-switcher: connection generation')
+  const catalog = new PickerCatalog(() => method<[]>(namespaceOf(ctx, 'session'), 'modelCatalog'))
+  ctx.effect(() => ctx.on('connection/reset', () => {
+    insights.invalidate()
+    catalog.invalidate(true)
+  }), 'model-switcher: connection generation')
   ctx.inject(['remote'], (remoteCtx) => {
     remoteCtx.effect(() => {
-      const invalidate = (): void => { insights.invalidate() }
+      const invalidate = (): void => {
+        insights.invalidate()
+        catalog.invalidate()
+      }
       const disposers = [
         remoteCtx.remote.$on('llm/adapters-updated', invalidate),
         remoteCtx.remote.$on('settings/document-updated', invalidate),
         remoteCtx.remote.$on('credentials/reference-updated', invalidate),
+        // A stored key can change which models the catalog lists.
+        remoteCtx.remote.$on('credentials/record-updated', () => { catalog.invalidate() }),
       ]
       return () => { for (const dispose of disposers) dispose() }
     }, 'model-switcher: pushed invalidations')
   })
+
+  ctx.plugin(ModelSwitcherPicker, { catalog, prefs, insights, settings, t: ctx.locale.bind(NS) as Translate })
 
   // `directoryFor` runs on the caller's context and reads `remote.session`, so
   // this scope declares the same Remote services the stock seat does.

@@ -85,7 +85,7 @@ describe('client plugin', () => {
     ])
     expect(b.dictionaries).toEqual(['model-switcher'])
     expect(document.head.querySelector('style[data-plugin="dsh-model-switcher"]')).not.toBeNull()
-    expect([...b.listeners.keys()].sort()).toEqual(['credentials/reference-updated', 'llm/adapters-updated', 'settings/document-updated'])
+    expect([...b.listeners.keys()].sort()).toEqual(['credentials/record-updated', 'credentials/reference-updated', 'llm/adapters-updated', 'settings/document-updated'])
 
     const face = b.registrations[0]!.inject('s1')
     expect(face.available).toBe(true)

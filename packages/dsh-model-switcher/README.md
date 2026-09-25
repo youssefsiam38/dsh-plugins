@@ -7,6 +7,8 @@ A richer model picker for the [DeepSeek Harness](https://github.com/deepseek-ai/
 
 The reasoning-effort control is in the same popover. On narrow screens the picker opens as a full-width bottom sheet.
 
+Other plugins can open the same popover to let you choose one or several models (see [For plugin authors](#for-plugin-authors)). [`dsh-model-compare`](../dsh-model-compare/README.md) uses it for its model list.
+
 ![The picker: provider select, grouped fuzzy search, badges, and the effort footer](https://cdn.jsdelivr.net/npm/dsh-model-switcher@0.1.0/docs/demo.gif)
 
 | Dark | Light | Provider stage | Phone |
@@ -23,6 +25,7 @@ The screenshots were taken by the browser test against stock dsh `0.1.7-rc.2` wi
 - [What it shows, and where the data comes from](#what-it-shows-and-where-the-data-comes-from)
 - [What it changes](#what-it-changes)
 - [Configuration](#configuration)
+- [For plugin authors](#for-plugin-authors)
 - [Uninstalling](#uninstalling)
 - [Compatibility](#compatibility)
 - [Known limitations](#known-limitations)
@@ -37,7 +40,7 @@ dsh plugin --profile web add dsh-model-switcher
 From a packed tarball:
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-model-switcher-0.1.0.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-model-switcher-0.2.0.tgz
 ```
 
 The bundle patch (`cordis.patch.yml`) inserts one plugin row with id `model-switcher`. The Web plugin page (**Plugins** in the sidebar) can do the same. Restart dsh if the profile does not reload live.
@@ -103,7 +106,7 @@ Costs and tool support are not shown, because dsh does not send them to the brow
 - **`/model` popup**: unchanged. It shares the same directory, so the two always agree.
 - **Settings pickers**: unchanged. The Settings pages have no replaceable model-picker seat. The Models page is a provider editor, and the Subagent page's model choices are a multi-select checklist inside a card that is registered as a whole. Replacing either would mean re-implementing its whole card. This plugin changes only the composer.
 
-The plugin adds no session events, no Host routes, and no model-visible input.
+The plugin adds no session events, no Host routes, and no model-visible input. It adds one browser service, `modelSwitcher`, which other plugins can call (next section).
 
 ## Configuration
 
@@ -125,6 +128,41 @@ Invalid values fail when the row loads. The Host half passes the settings to the
 
 If another plugin also replaces the model control, the lower priority wins. Two plugins at the same priority make the second registration fail, so change `priority` if you see that error.
 
+## For plugin authors
+
+The browser half provides a Cordis client service named `modelSwitcher`. Its `pick()` opens the same popover (a bottom sheet on phones) in picker mode: provider select, fuzzy model search, favorites and recents, badges, and keyboard all work as in the composer, but choosing a model changes no session. It lists the Host model catalog (`session.modelCatalog`). The effort row is not shown; the caller owns efforts.
+
+```ts
+pick(options?: {
+  anchor?: HTMLElement      // open below this element and return focus to it; omitted: centered
+  multiple?: boolean        // check several models, confirm with Done (or Ctrl/Cmd+Enter)
+  max?: number              // most models a multiple pick returns
+  exclude?: ModelRef[]      // models to leave out of the list
+  initial?: ModelRef[]      // models checked when a multiple pick opens
+  title?: string            // dialog label and sheet title
+}): Promise<ModelRef[] | undefined>   // ModelRef = { provider: string; model: string }
+```
+
+- A single pick resolves with one model as soon as it is chosen. A multiple pick toggles checkmarks, shows the count (`2 of 3 selected`), disables unchecked rows at `max`, and resolves on **Done** with the models in the order they were checked.
+- Esc, the Close button or scrim on phones, and a pointer outside the popover resolve `undefined`. So does unloading the plugin.
+- One pick is open at a time. A new `pick()` cancels the open one. Calling `pick()` again with the same `anchor` while it is open only closes it, so a toggle button needs no extra state.
+
+To keep the switcher optional, read the service when you need it and do not import the switcher's runtime code. Its types are published as a types-only entry, `dsh-model-switcher/service`, which you can add as a dev dependency. Or copy the small structural type, as `dsh-model-compare` does:
+
+```ts
+import type { ModelSwitcherService } from 'dsh-model-switcher/service'
+
+function switcher(ctx: Context): ModelSwitcherService | undefined {
+  const service: unknown = ctx.get('modelSwitcher' as never)
+  return typeof (service as { pick?: unknown } | undefined)?.pick === 'function' ? service as ModelSwitcherService : undefined
+}
+
+const picked = await switcher(ctx)?.pick({ anchor: button, multiple: true, max: 3, exclude: chosen })
+if (picked !== undefined) addModels(picked)
+```
+
+Read it at call time (or each render) rather than listing `modelSwitcher` in `inject`, which would keep your plugin from loading without the switcher.
+
 ## Uninstalling
 
 ```sh
@@ -136,7 +174,7 @@ The stock control comes back on the next load. Nothing is stored on the Host. Th
 ## Compatibility
 
 - dsh `>=0.1.7-rc.1 <0.2`, Web profile. Tested against the npm release `@deepseek-ai/dsh@0.1.7-rc.2` and a current source checkout.
-- The picker needs `@deepseek-ai/dsh-client-ui-model-selection`, which the Web profile ships. Without it the plugin registers nothing, so any other occupant of the slot keeps working.
+- The composer picker needs `@deepseek-ai/dsh-client-ui-model-selection`, which the Web profile ships. Without it the plugin registers nothing in the slot, so any other occupant keeps working. The `modelSwitcher` service does not need it; it needs the `session` Remote namespace for the catalog and shows a load error without it.
 - Key status needs the `settings` and `credentials` Remote namespaces. Metadata needs `llm.discoverModels`. Either one missing only removes its enrichment.
 - React 18 is provided by the dsh Web shell. The browser bundle includes [match-sorter](https://github.com/kentcdodds/match-sorter) 8.3.0 and is about 28 kB gzipped.
 - Node.js `^22.19 || >=24`.
@@ -167,6 +205,7 @@ The unit tests cover:
 - the enrichment reads, including wire validation and a load that an invalidation overtakes;
 - the component: the ARIA roles, arrow keys and Enter, the handoff from the provider search to the model search, the Tab cycle, effort, favorites, error toasts, loading and errors, and the phone sheet;
 - the browser plugin on a real Cordis context;
+- the `modelSwitcher` service: a single pick, cancel (Esc, outside pointer, unload, a newer pick, the same anchor again), a multiple pick up to `max` with Done and Ctrl+Enter, excluded and initial models, catalog errors with Retry, and option normalization;
 - the Host half through the Cordis Loader, including config that must be refused.
 
 The browser test (`e2e/`) installs the packed plugin and demo model routes into a throwaway `DSH_HOME` and boots the `web` profile. It drives Chromium through:
@@ -177,6 +216,8 @@ The browser test (`e2e/`) installs the packed plugin and demo model routes into 
 - favorites across a reload;
 - the phone sheet;
 - removal, after which the stock control is back.
+
+The `dsh-model-compare` browser test drives the `modelSwitcher` picker end to end (a multiple pick, then a comparison of the picked models).
 
 ```sh
 # @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
