@@ -8,6 +8,7 @@ Community plugins for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 | [`dsh-user-shell`](packages/dsh-user-shell/README.md) | `!cmd` and `!!cmd` in the Web composer: shell commands you run yourself in the session workspace, with live output, cancel, and a browser password prompt for sudo; `!` results reach the agent with your next message. |
 | [`dsh-hunk-review`](packages/dsh-hunk-review/README.md) | Review the agent's file edits per turn, hunk by hunk, in a right-sidebar tab: keep or revert each hunk, file, or the whole turn (`j`/`k`/`y`/`n`), with conflict detection and a note to the agent about what you reverted. |
 | [`dsh-model-switcher`](packages/dsh-model-switcher/README.md) | A richer composer model picker: a searchable provider select (logos, model counts, key status) above a fuzzy, keyboard-first model list grouped by provider, with favorites, recents, context/vision/reasoning badges, the effort control, and a bottom sheet on phones. |
+| [`dsh-command-menu`](packages/dsh-command-menu/README.md) | Cmd/Ctrl+K command menu: search sessions by title and message text, run slash commands, open settings pages and workspaces, switch the session's model, and run app actions, with recents, nested pages, and `>` `@` `#` scopes. |
 
 ## Working in this repository
 
