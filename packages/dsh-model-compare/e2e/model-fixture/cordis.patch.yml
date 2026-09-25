@@ -1,0 +1,3 @@
+- insert:
+    - id: e2e-model
+      name: dsh-model-compare-e2e-model
