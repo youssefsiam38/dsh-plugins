@@ -66,7 +66,7 @@ async function acknowledgeWelcome(home: string): Promise<void> {
     '- id: ui-settings-general',
     '  name: "@deepseek-ai/dsh-client-ui-settings-general"',
     '  config:',
-    '    welcomeNoticeVersion: 2026-08-13.1',
+    '    welcomeNoticeVersion: 2026-09-28.1',
     '',
   ].join('\n'))
 }
@@ -178,7 +178,7 @@ async function type(page: Page, text: string): Promise<void> {
 
 /**
  * Whether the composer claims `!` lines. Builds without line-prefix
- * input-trigger sources (such as dsh 0.1.7-rc.2 from npm) show the
+ * input-trigger sources (such as dsh 0.2.0-rc.2 from npm) show the
  * `unsupported` chip, and the test then drives the `/sh` and `/shq` commands.
  */
 async function detectLinePrefix(page: Page): Promise<boolean> {

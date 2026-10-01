@@ -66,7 +66,7 @@ async function acknowledgeWelcome(home: string): Promise<void> {
     '- id: ui-settings-general',
     '  name: "@deepseek-ai/dsh-client-ui-settings-general"',
     '  config:',
-    '    welcomeNoticeVersion: 2026-08-13.1',
+    '    welcomeNoticeVersion: 2026-09-28.1',
     '',
   ].join('\n'))
 }
