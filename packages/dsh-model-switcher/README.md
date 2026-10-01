@@ -40,7 +40,7 @@ dsh plugin --profile web add dsh-model-switcher
 From a packed tarball:
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-model-switcher-0.2.0.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-model-switcher-0.3.0.tgz
 ```
 
 The bundle patch (`cordis.patch.yml`) inserts one plugin row with id `model-switcher`. The Web plugin page (**Plugins** in the sidebar) can do the same. Restart dsh if the profile does not reload live.
@@ -173,7 +173,7 @@ The stock control comes back on the next load. Nothing is stored on the Host. Th
 
 ## Compatibility
 
-- dsh `>=0.1.7-rc.1 <0.2`, Web profile. Tested against the npm release `@deepseek-ai/dsh@0.1.7-rc.2` and a current source checkout.
+- dsh `>=0.2.0-rc.1 <0.3`, Web profile. Tested against the npm release `@deepseek-ai/dsh@0.2.0-rc.2`.
 - The composer picker needs `@deepseek-ai/dsh-client-ui-model-selection`, which the Web profile ships. Without it the plugin registers nothing in the slot, so any other occupant keeps working. The `modelSwitcher` service does not need it; it needs the `session` Remote namespace for the catalog and shows a load error without it.
 - Key status needs the `settings` and `credentials` Remote namespaces. Metadata needs `llm.discoverModels`. Either one missing only removes its enrichment.
 - React 18 is provided by the dsh Web shell. The browser bundle includes [match-sorter](https://github.com/kentcdodds/match-sorter) 8.3.0 and is about 28 kB gzipped.
@@ -223,7 +223,7 @@ The `dsh-model-compare` browser test drives the `modelSwitcher` picker end to en
 # @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
 pnpm --filter dsh-model-switcher run test:e2e
 # another npm version, a built dsh checkout, or any other launcher
-DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-model-switcher run test:e2e
+DSH_E2E_VERSION=0.2.0-rc.2 pnpm --filter dsh-model-switcher run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-model-switcher run test:e2e
 DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-model-switcher run test:e2e
 ```

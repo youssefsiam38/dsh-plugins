@@ -24,7 +24,7 @@ dsh plugin --profile web add dsh-command-menu
 dsh plugin --profile web add dsh-model-compare
 ```
 
-Remove one with `dsh plugin --profile web remove <name>`, or manage them on the Plugins page. The plugins need dsh `>=0.1.7-rc.1` and Node.js `^22.19 || >=24`; each README lists its own compatibility notes.
+Remove one with `dsh plugin --profile web remove <name>`, or manage them on the Plugins page. The plugins need dsh `>=0.2.0-rc.1` and Node.js `^22.19 || >=24`; each README lists its own compatibility notes.
 
 ## Working in this repository
 

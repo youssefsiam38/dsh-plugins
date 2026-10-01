@@ -32,7 +32,7 @@ dsh plugin --profile web add dsh-hunk-review
 From a packed tarball (for example one built from this repository with `pnpm pack`):
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-hunk-review-0.1.0.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-hunk-review-0.2.0.tgz
 ```
 
 The bundle patch (`cordis.patch.yml`) inserts one plugin row with id `hunk-review`. The Web plugin page (**Plugins** in the sidebar) can do the same. Restart dsh if the profile does not reload live.
@@ -144,7 +144,7 @@ All settings are optional. Override them in your profile's `cordis.patch.yml` by
 
 ## Compatibility
 
-- dsh `>=0.1.7-rc.1 <0.2` with the Web profile, the `@deepseek-ai/dsh-workspace-changes` recorder (part of the Web bundle), and a file service (`ctx.fs`).
+- dsh `>=0.2.0-rc.1 <0.3` with the Web profile, the `@deepseek-ai/dsh-workspace-changes` recorder (part of the Web bundle), and a file service (`ctx.fs`).
 - The tab uses the right sidebar's tab registry (`ctx.sidebarRightTabs`); the chip uses the chat's `conversation.chat.turnTail` slot. The page-command seam (`bindCommands`, for the sidebar's refresh control) is used when the host has it.
 - Node.js `^22.19 || >=24`. The browser half targets the dsh Web client (`dsh.client.platform: web`).
 
@@ -172,7 +172,7 @@ The browser test (`e2e/`) installs the packed plugin and a test-only model route
 # @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
 pnpm --filter dsh-hunk-review run test:e2e
 # another npm version, a built dsh checkout, or any other launcher
-DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-hunk-review run test:e2e
+DSH_E2E_VERSION=0.2.0-rc.2 pnpm --filter dsh-hunk-review run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-hunk-review run test:e2e
 DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-hunk-review run test:e2e
 ```

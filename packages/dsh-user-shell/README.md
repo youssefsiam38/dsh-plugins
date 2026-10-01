@@ -6,7 +6,7 @@ Shell commands you run yourself from the [DeepSeek Harness](https://github.com/d
 - `!!ls -la` runs the same way, but the output never reaches the agent. It is only recorded for you.
 - `! sudo apt install jq` shows a password field in the chat when sudo asks for a password. The password goes straight to sudo and is never logged or stored.
 
-On dsh builds whose composer has no line-prefix input sources, including `@deepseek-ai/dsh@0.1.7-rc.2` on npm, type `/sh <command>` and `/shq <command>` instead of `!` and `!!` (see [Compatibility](#compatibility)).
+On dsh builds whose composer has no line-prefix input sources, including `@deepseek-ai/dsh@0.2.0-rc.2` on npm, type `/sh <command>` and `/shq <command>` instead of `!` and `!!` (see [Compatibility](#compatibility)).
 
 ## Contents
 
@@ -31,7 +31,7 @@ dsh plugin --profile web add dsh-user-shell
 From a packed tarball (for example one built from this repository with `pnpm pack`):
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-user-shell-0.1.0.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-user-shell-0.2.0.tgz
 ```
 
 The bundle patch (`cordis.patch.yml`) inserts one plugin row with id `user-shell`. The Web plugin page (**Plugins** in the sidebar) can do the same. Restart dsh if the profile does not reload live.
@@ -168,7 +168,7 @@ All settings are optional. Override them in your profile's `cordis.patch.yml` by
 
 ## Compatibility
 
-- dsh `>=0.1.7-rc.1 <0.2`. `!` and `!!` in the composer need line-prefix input-trigger sources (`LineTriggerChar` in `@deepseek-ai/dsh-client-ui-input-trigger`), which published dsh versions up to 0.1.7-rc.2 do not have. Without them, use `/sh` and `/shq`. The composer chip shows which one applies, and a line is handled by only one of the two paths.
+- dsh `>=0.2.0-rc.1 <0.3`. `!` and `!!` in the composer need line-prefix input-trigger sources (`LineTriggerChar` in `@deepseek-ai/dsh-client-ui-input-trigger`), which published dsh versions up to 0.2.0-rc.2 do not have. Without them, use `/sh` and `/shq`. The composer chip shows which one applies, and a line is handled by only one of the two paths.
 - Node.js `^22.19 || >=24`. Targets need a POSIX `sh` with `mktemp -d`, `mkfifo`, and `base64`.
 - The browser half targets the dsh Web client (`dsh.client.platform: web`).
 
@@ -207,7 +207,7 @@ It uses `!` and `!!` when the composer claims `!` lines, and `/sh` and `/shq` ot
 # @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
 pnpm --filter dsh-user-shell run test:e2e
 # another npm version, a built dsh checkout, or any other launcher
-DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-user-shell run test:e2e
+DSH_E2E_VERSION=0.2.0-rc.2 pnpm --filter dsh-user-shell run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-user-shell run test:e2e
 DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-user-shell run test:e2e
 ```

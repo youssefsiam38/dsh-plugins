@@ -28,7 +28,7 @@ dsh plugin --profile web add dsh-session-retry
 From a packed tarball (for example one built from this repository with `pnpm pack`):
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-session-retry-0.2.0.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-session-retry-0.3.0.tgz
 ```
 
 The command adds the package to the profile and selects its bundle; the bundle patch (`cordis.patch.yml`) inserts one plugin row with id `session-retry`. The Web plugin page (**Plugins** in the sidebar) can do the same. Restart dsh if the profile does not reload live.
@@ -197,7 +197,7 @@ Remove the plugin with `dsh plugin --profile web remove dsh-session-retry` (or o
 
 ## Compatibility
 
-- dsh `>=0.1.7-rc.1 <0.2`: peer dependencies on `@deepseek-ai/dsh-*` packages use `^0.1.7-rc.1`.
+- dsh `>=0.2.0-rc.1 <0.3`: peer dependencies on `@deepseek-ai/dsh-*` packages use `^0.2.0-rc.1`.
 - Node.js `^22.19 || >=24`.
 - The browser half targets the dsh Web client (`dsh.client.platform: web`).
 
@@ -219,7 +219,7 @@ The browser test (`e2e/`) installs the packed plugin and a test-only model route
 # @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
 pnpm --filter dsh-session-retry run test:e2e
 # another npm version, a built dsh checkout, or any other launcher
-DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-session-retry run test:e2e
+DSH_E2E_VERSION=0.2.0-rc.2 pnpm --filter dsh-session-retry run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-session-retry run test:e2e
 DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-session-retry run test:e2e
 ```

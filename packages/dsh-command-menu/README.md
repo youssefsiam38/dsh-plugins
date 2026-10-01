@@ -28,7 +28,7 @@ dsh plugin --profile web add dsh-command-menu
 From a packed tarball (for example one built from this repository with `pnpm pack`):
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-command-menu-0.1.0.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-command-menu-0.2.0.tgz
 ```
 
 The bundle patch (`cordis.patch.yml`) inserts one plugin row with id `command-menu`. Restart dsh if the profile does not reload live.
@@ -117,7 +117,7 @@ Recently used entries are stored in this browser's `localStorage` (`dsh-command-
 
 ## Compatibility
 
-- dsh `>=0.1.7-rc.1 <0.2`, Web profile (`dsh.client.platform: web`).
+- dsh `>=0.2.0-rc.1 <0.3`, Web profile (`dsh.client.platform: web`).
 - Node.js `^22.19 || >=24`.
 - Coexists with keyboard-shortcut plugins such as `@hytime/dsh-client-ui-shortcuts` (its default chords use `Meta+Alt+Shift`).
 
@@ -139,7 +139,7 @@ The browser test (`e2e/`) installs the packed plugin and a test-only model route
 # @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
 pnpm --filter dsh-command-menu run test:e2e
 # another npm version, a built dsh checkout, or any other launcher
-DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-command-menu run test:e2e
+DSH_E2E_VERSION=0.2.0-rc.2 pnpm --filter dsh-command-menu run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-command-menu run test:e2e
 DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-command-menu run test:e2e
 ```

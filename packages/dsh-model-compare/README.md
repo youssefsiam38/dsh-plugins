@@ -27,7 +27,7 @@ dsh plugin --profile web add dsh-model-compare
 From a packed tarball (for example one built from this repository with `pnpm pack`):
 
 ```sh
-dsh plugin --profile web add /absolute/path/to/dsh-model-compare-0.2.0.tgz
+dsh plugin --profile web add /absolute/path/to/dsh-model-compare-0.3.0.tgz
 ```
 
 The bundle patch (`cordis.patch.yml`) inserts one plugin row with id `model-compare`. The Web plugin page (**Plugins** in the sidebar) can do the same. Restart dsh if the profile does not reload live.
@@ -140,7 +140,7 @@ Every session stays readable. Lanes of open comparisons become ordinary sessions
 
 ## Compatibility
 
-- dsh `>=0.1.7-rc.1 <0.2`, Web profile. The routes and the tab exist only with the Web connection; other profiles register nothing.
+- dsh `>=0.2.0-rc.1 <0.3`, Web profile. The routes and the tab exist only with the Web connection; other profiles register nothing.
 - Needs the session controller (`resolveAgent`, `fork`, `modelCatalog`), the workspace registry, and the storage domain, all in the stock Web profile.
 - `dsh-model-switcher` is optional. The setup form uses its `modelSwitcher` picker service (0.2 or later) when the page provides it, and its own list otherwise. There is no package dependency: the service is found at run time.
 - Node.js `^22.19 || >=24`.
@@ -171,7 +171,7 @@ The browser test (`e2e/`) installs the packed plugin and a test-only model route
 # @deepseek-ai/dsh from npm, at the version of the pinned @deepseek-ai/dsh-* dev dependencies
 pnpm --filter dsh-model-compare run test:e2e
 # another npm version, a built dsh checkout, or any other launcher
-DSH_E2E_VERSION=0.1.7-rc.2 pnpm --filter dsh-model-compare run test:e2e
+DSH_E2E_VERSION=0.2.0-rc.2 pnpm --filter dsh-model-compare run test:e2e
 DSH_E2E_CHECKOUT=/path/to/deepseek-harness pnpm --filter dsh-model-compare run test:e2e
 DSH_E2E_BIN="npx -y @deepseek-ai/dsh@next" pnpm --filter dsh-model-compare run test:e2e
 ```
